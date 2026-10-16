@@ -1,0 +1,9 @@
+# Claude desktop app preview settings (local only)
+.claude/
+
+# Diary backups exported from the app contain personal data
+macro-tracker-*.json
+
+# OS clutter
+.DS_Store
+Thumbs.db

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A calorie, macro and water tracker that keeps your diary on your own device.">
+  <title>Macro Tracker</title>
+  <!-- Apply the saved light/dark choice before the page draws, so it doesn't flash the wrong colors. -->
+  <script>try { const t = JSON.parse(localStorage.getItem('macro-tracker'))?.profile?.theme; if (t) document.documentElement.dataset.theme = t; } catch {}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ===== Nutrition (diary) screen ===== -->
+<header>
+  <nav class="day">
+    <button id="prev" aria-label="Previous day">‹</button>
+    <label class="datepick"><span id="dateLabel"></span><input type="date" id="date" aria-label="Pick a date"></label>
+    <button id="next" aria-label="Next day">›</button>
+  </nav>
+  <nav class="menu">
+    <button class="link" id="recipeBtn">New recipe</button>
+    <button class="link" id="achBtn">Achievements</button>
+  </nav>
+</header>
+
+<nav id="week" aria-label="Days this week"></nav>
+<p id="streak"></p>
+<p id="notice"></p>
+<div id="summary"></div>
+<div id="meals"></div>
+
+<!-- ===== Bottom tabs ===== -->
+<nav id="tabs" aria-label="Sections">
+  <button id="goalsBtn">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>
+    Goals
+  </button>
+  <button id="nutritionBtn" aria-current="page">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v7a2 2 0 0 0 4 0V3M9 12v9M18 3c-2.2 1-3.5 4-3.5 8H18v10"/></svg>
+    Nutrition
+  </button>
+  <button id="profileBtn">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>
+    Profile
+  </button>
+</nav>
+
+<!-- ===== Goals screen ===== -->
+<dialog id="goalsDlg" class="page">
+  <form method="dialog">
+    <h2>Daily goals</h2>
+    <div class="grid">
+      <label class="wide"><span>Goal weight (<span class="wUnit">lbs</span>)</span><input name="goalWeight" type="number" step="0.1" min="0"></label>
+      <label class="wide"><span>Daily water goal (<span class="waterUnit">oz</span>)</span><input name="waterGoal" type="number" step="1" min="0"></label>
+      <label class="wide">Goal<select name="rate"></select></label>
+    </div>
+    <button type="button" id="calcBtn">Calculate from my profile</button>
+    <p id="calcMsg"></p>
+    <div class="grid">
+      <label>Calories<input name="kcal" type="number" min="0" required></label>
+      <label>Protein (g)<input name="p" type="number" min="0" required></label>
+      <label>Carbs (g)<input name="c" type="number" min="0" required></label>
+      <label>Fat (g)<input name="f" type="number" min="0" required></label>
+      <label class="wide">USDA API key (optional, free at fdc.nal.usda.gov/api-key-signup)<input name="usdaKey" placeholder="DEMO_KEY"></label>
+    </div>
+    <div class="actions"><button value="cancel" formnovalidate>Cancel</button><button value="ok">Save</button></div>
+  </form>
+</dialog>
+
+<!-- ===== Profile screen ===== -->
+<dialog id="profileDlg" class="page">
+  <form method="dialog">
+    <h2>Your profile</h2>
+    <p id="bestStreak"></p>
+    <div class="grid">
+      <label class="wide">Name<input name="name" maxlength="20" autocomplete="given-name"></label>
+      <fieldset class="wide toggle">
+        <legend>Units</legend>
+        <label><input type="radio" name="units" value="imperial"><span>lbs / in</span></label>
+        <label><input type="radio" name="units" value="metric"><span>kg / cm</span></label>
+      </fieldset>
+      <fieldset class="wide toggle">
+        <legend>Appearance</legend>
+        <label><input type="radio" name="theme" value=""><span>Auto</span></label>
+        <label><input type="radio" name="theme" value="light"><span>Light</span></label>
+        <label><input type="radio" name="theme" value="dark"><span>Dark</span></label>
+      </fieldset>
+      <label>Sex<select name="sex"><option value="m">Male</option><option value="f">Female</option></select></label>
+      <label>Age<input name="age" type="number" min="13" max="100"></label>
+      <label><span>Height (<span class="hUnit">in</span>)</span><input name="height" type="number" step="0.1" min="0"></label>
+      <label class="wide"><span>Current weight (<span class="wUnit">lbs</span>)</span><input name="pweight" type="number" step="0.1" min="0"></label>
+      <button type="button" class="link wide" id="progressBtn">See weight progress</button>
+      <label class="wide">Activity level
+        <select name="activity">
+          <option value="1.2">Sedentary (desk job, little exercise)</option>
+          <option value="1.375">Lightly active (exercise 1–3 days/week)</option>
+          <option value="1.55">Active (exercise 3–5 days/week)</option>
+          <option value="1.725">Very active (hard exercise 6–7 days/week)</option>
+        </select>
+      </label>
+    </div>
+    <p><small>Saving a new current weight also logs it for today.</small></p>
+
+    <h3>Backup</h3>
+    <p><small>Your diary is stored only on this device. Export a backup every week or two.</small></p>
+    <div class="actions start">
+      <button type="button" id="exportBtn">Export backup</button>
+      <button type="button" id="restoreBtn">Restore from backup</button>
+      <input type="file" id="importFile" accept=".json" hidden>
+    </div>
+    <div class="actions"><button value="cancel" formnovalidate>Cancel</button><button value="ok">Save</button></div>
+  </form>
+</dialog>
+
+<!-- ===== Bottom sheets ===== -->
+<dialog id="addDlg">
+  <form id="foodForm" method="dialog">
+    <h2><span id="addTitle">Add to</span> <select name="meal"></select></h2>
+    <div class="bar">
+      <input id="q" type="search" placeholder="Search foods or enter barcode">
+      <button type="button" id="scanBtn" aria-label="Scan barcode">📷</button>
+      <button type="button" id="searchBtn">Search</button>
+    </div>
+    <ul id="results"></ul>
+    <div class="grid">
+      <label class="wide">Food name<input name="name" required></label>
+      <label>Serving<input name="unit" value="serving" required></label>
+      <label>Servings<input name="qty" type="number" step="any" min="0" value="1" required></label>
+      <label>Calories<input name="kcal" type="number" step="any" min="0" required></label>
+      <label>Protein (g)<input name="p" type="number" step="any" min="0" value="0"></label>
+      <label>Carbs (g)<input name="c" type="number" step="any" min="0" value="0"></label>
+      <label>Fat (g)<input name="f" type="number" step="any" min="0" value="0"></label>
+    </div>
+    <div class="actions"><button value="cancel" formnovalidate>Cancel</button><button value="ok">Add</button></div>
+  </form>
+</dialog>
+
+<dialog id="scanDlg">
+  <video id="video" playsinline muted></video>
+  <p><small id="scanMsg"></small></p>
+  <form method="dialog" class="actions"><button>Cancel</button></form>
+</dialog>
+
+<dialog id="recipeDlg">
+  <form method="dialog">
+    <h2 id="recipeTitle">New recipe</h2>
+    <div class="grid">
+      <label class="wide">Recipe name<input name="name" required></label>
+      <label>Makes (servings)<input name="servings" type="number" step="any" min="0.1" value="1" required></label>
+    </div>
+    <div id="ingredients"></div>
+    <button type="button" class="link" id="addIng">+ Add ingredient</button>
+    <div class="actions"><button value="cancel" formnovalidate>Cancel</button><button value="ok">Save recipe</button></div>
+  </form>
+</dialog>
+
+<dialog id="progDlg">
+  <h2>Weight progress</h2>
+  <p id="wReadout" aria-live="polite"></p>
+  <svg id="wChart" viewBox="0 0 320 160" role="img" aria-label="Weight over time"></svg>
+  <div id="wList"></div>
+  <form method="dialog" class="actions"><button>Close</button></form>
+</dialog>
+
+<dialog id="achDlg">
+  <h2>Achievements<span id="achCount"></span></h2>
+  <div class="achbar"><i id="achFill"></i></div>
+  <div id="achList"></div>
+  <form method="dialog" class="actions"><button>Close</button></form>
+</dialog>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
