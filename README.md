@@ -11,7 +11,8 @@ A free calorie, macro and water tracker that runs in your phone's browser. Your 
 - **Goals**: calculated from your profile (Mifflin-St Jeor), with a lose/maintain/gain rate, goal weight and daily water goal.
 - **Water tracker**: tap cups to log water.
 - **Progress**: weight chart, daily logging streak, and 41 achievements (two of them secret).
-- **Settings**: lbs/in or kg/cm, light/dark/auto appearance, and backup export and restore.
+- **Settings**: lbs/in or kg/cm, and backup export and restore.
+- **Light and dark mode**: one tap on the sun/moon button. It follows your phone's setting until you tap it.
 
 ## Run it locally
 

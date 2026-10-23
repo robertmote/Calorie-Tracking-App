@@ -158,6 +158,26 @@ $('#meals').onclick = e => {
   }
 };
 
+// ---------- Light / dark mode: sun/moon button in the header ----------
+// Until the button is first tapped, S.profile.theme is empty and the app follows the phone's setting.
+const phoneDark = matchMedia('(prefers-color-scheme: dark)');
+const isDark = () => (S.profile.theme || (phoneDark.matches ? 'dark' : 'light')) === 'dark';
+
+function applyTheme(t) {
+  if (t) document.documentElement.dataset.theme = t;
+  else delete document.documentElement.dataset.theme;
+  const dark = isDark(), btn = $('#themeBtn');
+  btn.classList.toggle('dark', dark);
+  btn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+}
+
+$('#themeBtn').onclick = () => {
+  S.profile.theme = isDark() ? 'light' : 'dark';
+  applyTheme(S.profile.theme);
+  save();
+};
+phoneDark.addEventListener('change', () => applyTheme(S.profile.theme)); // keep the icon right while following the phone
+
 // Buttons rendered inside messages that open another screen, e.g. data-go="profileBtn".
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-go]');
@@ -627,12 +647,9 @@ function showPage(id) {
 Object.values(PAGES).forEach(d => d.addEventListener('close', syncTabs));
 $('#nutritionBtn').onclick = () => { closePages(); syncTabs(); scrollTo({ top: 0 }); };
 
-// ---------- Profile (units and appearance live here) ----------
+// ---------- Profile (units live here) ----------
 const pForm = $('#profileDlg form');
 const pImperial = () => pForm.units.value === 'imperial';
-
-// '' = follow the phone's light/dark setting
-const applyTheme = t => t ? document.documentElement.dataset.theme = t : delete document.documentElement.dataset.theme;
 
 function setProfileUnits() {
   pForm.querySelector('.hUnit').textContent = pImperial() ? 'in' : 'cm';
@@ -641,7 +658,6 @@ function setProfileUnits() {
 }
 
 pForm.onchange = e => {
-  if (e.target.name === 'theme') return applyTheme(e.target.value); // live preview; Cancel reverts
   if (e.target.name !== 'units') return;
   // Convert what's typed so switching units doesn't scramble it.
   const h = +pForm.height.value, w = +pForm.pweight.value, imp = pImperial();
@@ -656,7 +672,6 @@ $('#profileBtn').onclick = () => {
   pForm.reset();
   pForm.name.value = p.name || '';
   pForm.units.value = p.units;
-  pForm.theme.value = p.theme || '';
   pForm.sex.value = p.sex || 'm';
   pForm.age.value = p.age || '';
   pForm.activity.value = p.activity || '1.2';
@@ -668,12 +683,11 @@ $('#profileBtn').onclick = () => {
 };
 
 $('#profileDlg').onclose = () => {
-  if ($('#profileDlg').returnValue !== 'ok') return applyTheme(S.profile.theme);
+  if ($('#profileDlg').returnValue !== 'ok') return;
   const imp = pImperial(), h = +pForm.height.value, w = +pForm.pweight.value;
   Object.assign(S.profile, {
     name: pForm.name.value.trim(),
     units: pForm.units.value,
-    theme: pForm.theme.value,
     sex: pForm.sex.value,
     age: +pForm.age.value || undefined,
     activity: pForm.activity.value,
@@ -785,5 +799,6 @@ $('#importFile').onchange = async e => {
 };
 
 // ---------- Start ----------
+applyTheme(S.profile.theme);
 render();
 booted = true;

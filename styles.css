@@ -110,7 +110,24 @@ header {
 /* The native date input sits invisibly over the label so tapping opens the picker. */
 .datepick input { position: absolute; inset: 0; width: 100%; padding: 0; border: 0; opacity: 0; cursor: pointer; }
 
-.menu { display: flex; gap: 18px; }
+.menu { display: flex; align-items: center; gap: 4px; }
+.menu .link { margin-right: 8px; }
+
+button.icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--fg);
+}
+button.icon svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Sun in light mode, moon in dark mode */
+#themeBtn .moon, #themeBtn.dark .sun { display: none; }
+#themeBtn.dark .moon { display: block; }
 
 /* ==========================================================================
    Week strip, streak and notices
@@ -243,7 +260,7 @@ dialog label { display: flex; flex-direction: column; gap: 4px; font-size: .85re
 #wChart { width: 100%; height: auto; touch-action: none; }
 #wList { max-height: 200px; overflow: auto; }
 
-/* Segmented toggles (Units, Appearance) */
+/* Segmented toggle (Units) */
 .toggle { display: flex; min-width: 0; margin: 0; padding: 0; border: 0; }
 .toggle legend { padding: 0 0 4px; font-size: .85rem; font-weight: 600; color: var(--muted); }
 .toggle label { position: relative; flex: 1; min-width: 0; }
