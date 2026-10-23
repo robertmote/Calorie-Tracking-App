@@ -738,8 +738,16 @@ $('#calcBtn').onclick = () => {
   $('#calcMsg').innerHTML = `<small>Maintenance ≈ ${g.tdee} kcal/day. Goal: ${g.kcal} kcal${g.floored ? ' (raised to the safe minimum, so you may lose more slowly than selected)' : ''}. Adjust any number below, then Save.</small>`;
 };
 
-$('#goalsDlg').onclose = () => {
-  if ($('#goalsDlg').returnValue !== 'ok') return;
+// Save keeps you on the Goals screen; Cancel or another tab leaves without saving.
+gForm.onsubmit = e => {
+  if (e.submitter?.value !== 'ok') return;
+  e.preventDefault();
+  saveGoals();
+  calcKg = null; // already saved; a later Save without Calculate shouldn't re-record it
+  toast('<b>Goals saved</b>');
+};
+
+function saveGoals() {
   const water = +gForm.waterGoal.value, goalWeight = +gForm.goalWeight.value;
   S.profile.rate = +gForm.rate.value;
   if (calcKg) S.profile.calcKg = calcKg;
@@ -748,7 +756,7 @@ $('#goalsDlg').onclose = () => {
   NUT.forEach(k => S.goals[k] = +gForm[k].value || 0);
   S.usdaKey = gForm.usdaKey.value.trim();
   save(); render();
-};
+}
 
 // ---------- Backup (browser storage can be cleared; export regularly) ----------
 $('#exportBtn').onclick = () => {

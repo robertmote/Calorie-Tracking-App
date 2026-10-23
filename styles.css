@@ -222,6 +222,7 @@ dialog label { display: flex; flex-direction: column; gap: 4px; font-size: .85re
 
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 8px; margin: 10px 0; }
 .grid .wide { grid-column: span 3; }
+.grid > * { min-width: 0; } /* long text or wide controls shrink instead of overflowing */
 .grid input, .grid select { width: 100%; min-width: 0; }
 
 .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
@@ -243,10 +244,11 @@ dialog label { display: flex; flex-direction: column; gap: 4px; font-size: .85re
 #wList { max-height: 200px; overflow: auto; }
 
 /* Segmented toggles (Units, Appearance) */
-.toggle { display: flex; margin: 0; padding: 0; border: 0; }
+.toggle { display: flex; min-width: 0; margin: 0; padding: 0; border: 0; }
 .toggle legend { padding: 0 0 4px; font-size: .85rem; font-weight: 600; color: var(--muted); }
-.toggle label { flex: 1; }
-.toggle input { position: absolute; opacity: 0; }
+.toggle label { position: relative; flex: 1; min-width: 0; }
+/* The real radio is invisible and sized to its label, so it can't widen the screen. */
+.toggle input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .toggle span { display: block; padding: 9px; border: 1.5px solid var(--fg); text-align: center; font-size: 1rem; color: var(--fg); }
 .toggle label + label span { border-left: 0; }
 .toggle label:first-of-type span { border-radius: 6px 0 0 6px; }
@@ -299,8 +301,9 @@ dialog.page {
   max-height: none;
   margin: 0 auto;
   padding: 16px;
-  overflow: auto;
+  overflow: hidden auto; /* scroll down only, never sideways */
   border-radius: 0;
+  overflow-wrap: anywhere; /* long words such as the USDA link wrap instead of widening the screen */
 }
 dialog.page[open] { animation: none; }
 
