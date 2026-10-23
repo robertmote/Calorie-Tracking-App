@@ -362,6 +362,24 @@ dialog.page[open] { animation: none; }
 #toast small { display: block; color: inherit; opacity: .75; }
 #toast b { font: 900 1.1rem var(--font); font-stretch: 85%; }
 
+/* Save failure warning: fixed colors so the white text stays readable in both themes */
+#saveProblem {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: calc(10px + env(safe-area-inset-top)) 16px 6px;
+  background: #b3261e;
+  color: #fff;
+  font-size: .9rem;
+}
+#saveProblem[hidden] { display: none; }
+#saveProblem b { display: block; }
+#saveProblem button.link { margin-right: 20px; padding: 8px 0; color: #fff; text-decoration: underline; }
+
 @media (prefers-reduced-motion: reduce) {
   dialog[open] { animation: none; }
   #toast { transition: none; }

@@ -176,6 +176,13 @@
 
 <div id="toast" role="status" aria-live="polite"></div>
 
+<!-- Shown on every screen while changes exist only in memory because saving failed. -->
+<div id="saveProblem" role="alert" hidden>
+  <b>Your latest changes aren’t saved.</b>
+  Your browser’s storage is full or turned off, so they’ll be lost if you close the app.
+  <div><button class="link" id="retrySave">Try again</button><button class="link" data-go="exportBtn">Export a backup</button></div>
+</div>
+
 <script src="app.js"></script>
 </body>
 </html>

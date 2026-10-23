@@ -49,7 +49,9 @@ function migrate(s) {
 }
 
 function load() {
-  const raw = localStorage.getItem(KEY);
+  let raw;
+  try { raw = localStorage.getItem(KEY); }
+  catch { return migrate({}); } // storage blocked entirely: run in memory, and save() will say so
   try {
     return migrate(JSON.parse(raw) || {});
   } catch {
@@ -59,15 +61,28 @@ function load() {
 }
 
 let S = load();
-let dirty = true; // data changed since achievements were last checked
+let dirty = true;     // data changed since achievements were last checked
+let unsaved = false; // the last save failed, so some changes exist only in memory
+
+// Returns whether the data was stored. On failure a warning bar stays up (on every screen) until a
+// save succeeds, offering Try again and Export, so changes never look saved when they aren't.
 function save() {
   dirty = true;
   try {
     localStorage.setItem(KEY, JSON.stringify(S));
+    unsaved = false;
   } catch {
-    toast('<b>Couldn’t save</b><small>Your browser’s storage is full or turned off.</small>');
+    unsaved = true;
   }
+  $('#saveProblem').hidden = !unsaved;
+  document.body.style.paddingTop = unsaved ? $('#saveProblem').offsetHeight + 'px' : ''; // don't cover the header
+  return !unsaved;
 }
+
+$('#retrySave').onclick = () => toast(save() ? '<b>Saved</b>' : '<b>Still couldn’t save</b><small>Export a backup so nothing is lost.</small>');
+// Try again whenever the app goes to the background, and warn before closing with changes not stored.
+document.addEventListener('visibilitychange', () => { if (document.hidden && unsaved) save(); });
+addEventListener('beforeunload', e => { if (unsaved) e.preventDefault(); });
 navigator.storage?.persist?.(); // ask the browser not to evict our data
 
 let date = today(); // the diary day being viewed
@@ -634,8 +649,7 @@ $('#recipeDlg').onclose = () => {
   NUT.forEach(k => food[k] = t[k] / n);
   if (editing != null) S.foods = S.foods.filter(f => !(f.name === editing && f.unit === RECIPE_UNIT)); // handles renames
   rememberFood(food);
-  save();
-  alert(`Saved "${food.name}". Find it under My Foods when adding food.`);
+  if (save()) alert(`Saved "${food.name}". Find it under My Foods when adding food.`);
 };
 
 // ---------- Weight progress: line over time; tap or hover a point for its value ----------
@@ -821,9 +835,9 @@ $('#calcBtn').onclick = () => {
 // Save keeps you on the Goals screen; Cancel or another tab leaves without saving.
 gForm.onsubmit = e => {
   e.preventDefault();
-  saveGoals();
-  calcKg = null; // already saved; a later Save without Calculate shouldn't re-record it
-  toast('<b>Goals saved</b>');
+  const stored = saveGoals();
+  calcKg = null; // already applied; a later Save without Calculate shouldn't re-record it
+  if (stored) toast('<b>Goals saved</b>'); // on failure the warning bar explains instead
 };
 
 function saveGoals() {
@@ -834,7 +848,9 @@ function saveGoals() {
   S.goals.weightKg = goalWeight > 0 ? (imperial() ? goalWeight / LB : goalWeight) : undefined; // stored in kg like all weights
   NUT.forEach(k => S.goals[k] = +gForm[k].value || 0);
   S.usdaKey = gForm.usdaKey.value.trim();
-  save(); render();
+  const stored = save();
+  render();
+  return stored;
 }
 
 // ---------- Backup (browser storage can be cleared; export regularly) ----------
