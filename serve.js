@@ -3,7 +3,9 @@ const http = require('http'), fs = require('fs'), path = require('path');
 const root = __dirname, types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css' };
 
 http.createServer((req, res) => {
-  const p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  let p;
+  try { p = decodeURIComponent(new URL(req.url, 'http://x').pathname); }
+  catch { return res.writeHead(400).end('Bad request'); } // malformed %-escapes would otherwise crash the server
   const file = path.join(root, p === '/' ? 'index.html' : p);
   if (!file.startsWith(root + path.sep)) return res.writeHead(403).end(); // block ../ escapes
   fs.readFile(file, (err, data) => {

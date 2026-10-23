@@ -74,7 +74,7 @@
       <label>Fat (g)<input name="f" type="number" min="0" required></label>
       <label class="wide">USDA API key (optional, free at fdc.nal.usda.gov/api-key-signup)<input name="usdaKey" placeholder="DEMO_KEY"></label>
     </div>
-    <div class="actions"><button value="cancel" formnovalidate>Cancel</button><button value="ok">Save</button></div>
+    <div class="actions"><button type="button" data-cancel>Cancel</button><button value="ok">Save</button></div>
   </form>
 </dialog>
 
@@ -113,7 +113,7 @@
       <button type="button" id="restoreBtn">Restore from backup</button>
       <input type="file" id="importFile" accept=".json" hidden>
     </div>
-    <div class="actions"><button value="cancel" formnovalidate>Cancel</button><button value="ok">Save</button></div>
+    <div class="actions"><button type="button" data-cancel>Cancel</button><button value="ok">Save</button></div>
   </form>
 </dialog>
 
@@ -136,7 +136,7 @@
       <label>Carbs (g)<input name="c" type="number" step="any" min="0" value="0"></label>
       <label>Fat (g)<input name="f" type="number" step="any" min="0" value="0"></label>
     </div>
-    <div class="actions"><button value="cancel" formnovalidate>Cancel</button><button value="ok">Add</button></div>
+    <div class="actions"><button type="button" data-cancel>Cancel</button><button value="ok">Add</button></div>
   </form>
 </dialog>
 
@@ -155,7 +155,7 @@
     </div>
     <div id="ingredients"></div>
     <button type="button" class="link" id="addIng">+ Add ingredient</button>
-    <div class="actions"><button value="cancel" formnovalidate>Cancel</button><button value="ok">Save recipe</button></div>
+    <div class="actions"><button type="button" data-cancel>Cancel</button><button value="ok">Save recipe</button></div>
   </form>
 </dialog>
 

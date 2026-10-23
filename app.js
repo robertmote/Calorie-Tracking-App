@@ -13,7 +13,9 @@ const esc = s => String(s).replace(/[&<>"']/g, ch => `&#${ch.charCodeAt(0)};`);
 const signed = n => (n > 0 ? '+' : '') + n.toFixed(1);
 
 // Dates are local "YYYY-MM-DD" keys. Noon avoids daylight-saving edge cases.
-const iso = d => d.toLocaleDateString('en-CA');
+// Built by hand: toLocaleDateString output varies between browsers and is much slower.
+const pad = n => String(n).padStart(2, '0');
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const today = () => iso(new Date());
 const toDate = k => new Date(k + 'T12:00');
 const addDays = (k, n) => { const d = toDate(k); d.setDate(d.getDate() + n); return iso(d); };
@@ -29,8 +31,16 @@ const IN = 2.54;     // cm per inch
 const OZ = 29.5735;  // ml per fl oz
 const RECIPE_UNIT = 'serving (recipe)';
 
-// Weights are stored in kg. Data saved before the units setting existed stored what was typed (lbs).
+// Fills in anything missing so older saves and hand-edited backups can't crash the app.
 function migrate(s) {
+  s.goals = { kcal: 2000, p: 150, c: 200, f: 65, ...s.goals };
+  s.foods = Array.isArray(s.foods) ? s.foods : [];
+  s.days = s.days && typeof s.days === 'object' ? s.days : {};
+  for (const [k, d] of Object.entries(s.days)) {
+    if (!Array.isArray(d.entries)) d.entries = [];
+    if (!d.entries.length && !d.water && !d.weight) delete s.days[k]; // days that were only viewed
+  }
+  // Weights are stored in kg. Data saved before the units setting existed stored what was typed (lbs).
   if (!s.profile) {
     for (const d of Object.values(s.days)) if (d.weight) d.weight /= LB;
     s.profile = { units: 'imperial' };
@@ -38,13 +48,39 @@ function migrate(s) {
   return s;
 }
 
-let S = migrate(JSON.parse(localStorage.getItem(KEY) || 'null')
-  || { goals: { kcal: 2000, p: 150, c: 200, f: 65 }, foods: [], days: {} });
-const save = () => localStorage.setItem(KEY, JSON.stringify(S));
+function load() {
+  const raw = localStorage.getItem(KEY);
+  try {
+    return migrate(JSON.parse(raw) || {});
+  } catch {
+    try { localStorage.setItem(KEY + '-unreadable', raw); } catch {} // keep the damaged copy rather than overwriting it
+    return migrate({});
+  }
+}
+
+let S = load();
+let dirty = true; // data changed since achievements were last checked
+function save() {
+  dirty = true;
+  try {
+    localStorage.setItem(KEY, JSON.stringify(S));
+  } catch {
+    toast('<b>Couldn’t save</b><small>Your browser’s storage is full or turned off.</small>');
+  }
+}
 navigator.storage?.persist?.(); // ask the browser not to evict our data
 
 let date = today(); // the diary day being viewed
-const day = (k = date) => S.days[k] ??= { entries: [] };
+const day = (k = date) => S.days[k] ??= { entries: [] }; // creates the day; only call when writing to it
+const viewDay = () => S.days[date] ?? { entries: [] };   // read-only, so browsing days doesn't save empty ones
+
+// How a dialog was closed ('ok' or 'cancel'). Cleared after reading: Esc or the phone's Back
+// gesture closes a dialog without setting it, which would otherwise repeat the last 'ok'.
+function closedWith(dlg) {
+  const v = dlg.returnValue;
+  dlg.returnValue = '';
+  return v;
+}
 const logged = k => S.days[k]?.entries.length > 0;
 const totals = entries => entries.reduce((t, e) => (NUT.forEach(k => t[k] += e[k] * e.qty), t), { kcal: 0, p: 0, c: 0, f: 0 });
 
@@ -62,7 +98,7 @@ const waterGoal = () => S.goals.waterMl ?? 128 * OZ;
 // ---------- Diary screen ----------
 function render() {
   checkAchievements();
-  const d = day();
+  const d = viewDay();
   renderHeader();
   renderStatus();
   renderLabel(d);
@@ -119,7 +155,7 @@ function renderLabel(d) {
 }
 
 const entryRow = (e, attr) => `<div class="row">
-  <div>${esc(e.name)}<small>${e.qty} × ${esc(e.unit)}<span class="mac">P ${r(e.p * e.qty)} C ${r(e.c * e.qty)} F ${r(e.f * e.qty)}</span></small></div>
+  <div>${esc(e.name)}<small>${+e.qty} × ${esc(e.unit)}<span class="mac">P ${r(e.p * e.qty)} C ${r(e.c * e.qty)} F ${r(e.f * e.qty)}</span></small></div>
   <span>${r(e.kcal * e.qty)}</span>
   <button class="link del" ${attr} aria-label="Delete ${esc(e.name)}">✕</button>
 </div>`;
@@ -178,10 +214,25 @@ $('#themeBtn').onclick = () => {
 };
 phoneDark.addEventListener('change', () => applyTheme(S.profile.theme)); // keep the icon right while following the phone
 
-// Buttons rendered inside messages that open another screen, e.g. data-go="profileBtn".
 document.addEventListener('click', e => {
-  const b = e.target.closest('[data-go]');
-  if (b) $('#' + b.dataset.go).click();
+  // Buttons rendered inside messages that open another screen, e.g. data-go="profileBtn".
+  const go = e.target.closest('[data-go]');
+  if (go) $('#' + go.dataset.go).click();
+  // Cancel buttons are type="button" so the keyboard's Go/Enter key presses the form's Save/Add instead.
+  const cancel = e.target.closest('[data-cancel]');
+  if (cancel) cancel.closest('dialog').close('cancel');
+});
+// Since Cancel never submits, any form submission means OK, even one with no button (some keyboards' Go key).
+for (const f of document.querySelectorAll('dialog form')) f.addEventListener('submit', () => f.closest('dialog').returnValue = 'ok');
+
+// If the app is reopened on a new day (e.g. left open overnight), move "Today" forward.
+let shownToday = today();
+document.addEventListener('visibilitychange', () => {
+  const now = today();
+  if (document.hidden || now === shownToday) return;
+  if (date === shownToday) date = now;
+  shownToday = now;
+  render();
 });
 
 // ---------- Water: stored per day in ml; cups are 8 oz (imperial) or 250 ml (metric) ----------
@@ -248,7 +299,7 @@ function comeback(keys) { // a 3-day run that began after 3+ missed days
 // ---------- Achievements: computed from the diary; unlock dates are saved the first time each is earned ----------
 function achStats() {
   const all = Object.keys(S.days).sort(), keys = all.filter(logged), g = S.goals, p = S.profile, now = today();
-  const tot = k => totals(S.days[k].entries);
+  const cache = {}, tot = k => cache[k] ??= totals(S.days[k].entries); // each day's totals computed once
   const entries = keys.flatMap(k => S.days[k].entries.map(e => ({ ...e, k })));
   const near = (v, goal) => goal > 0 && Math.abs(v - goal) <= goal * 0.1;
   const onTarget = k => logged(k) && Math.abs(tot(k).kcal - g.kcal) <= 100;
@@ -344,6 +395,8 @@ const ACH = [ // [id, name, description, value from stats, target, secret]
 
 let booted = false; // achievements already earned when the app opens unlock quietly
 function checkAchievements() {
+  if (!dirty) return; // nothing saved since the last check (e.g. just switching days)
+  dirty = false;
   const got = S.achievements ??= {}, s = achStats();
   const fresh = ACH.filter(a => !got[a.id] && a.val(s) >= a.target());
   if (!fresh.length) return;
@@ -399,12 +452,13 @@ function openAdd(meal) { // meal = null → adding a recipe ingredient
   form.meal.hidden = !meal;
   $('#addTitle').textContent = meal ? 'Add to' : 'Add ingredient';
   $('#q').value = '';
+  searchId++;
   showHits(localHits(''));
   $('#addDlg').showModal();
   $('#q').focus();
 }
 
-$('#q').oninput = e => showHits(localHits(e.target.value));
+$('#q').oninput = e => { searchId++; showHits(localHits(e.target.value)); }; // typing cancels a pending search
 $('#q').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); searchOnline(); } };
 $('#searchBtn').onclick = searchOnline;
 $('#results').onclick = e => {
@@ -421,7 +475,7 @@ function rememberFood(food) {
 }
 
 $('#addDlg').onclose = () => {
-  if ($('#addDlg').returnValue !== 'ok') return;
+  if (closedWith($('#addDlg')) !== 'ok') return;
   const fd = Object.fromEntries(new FormData(form));
   const food = { name: fd.name.trim(), unit: fd.unit.trim() };
   NUT.forEach(k => food[k] = +fd[k] || 0);
@@ -460,16 +514,21 @@ function fromUSDA(x) {
   return f;
 }
 
+const searchError = msg => Object.assign(new Error(msg), { forUser: true }); // a message worth showing as-is
+
 async function searchUSDA(q) {
   const key = encodeURIComponent(S.usdaKey || 'DEMO_KEY');
   const res = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${key}&query=${encodeURIComponent(q)}&pageSize=25`);
-  if (res.status === 429) throw new Error('Rate limit hit. Add your free USDA API key under Goals.');
-  const { foods } = await res.json();
+  if (res.status === 429) throw searchError('Too many searches with the shared key. Add your free USDA API key under Goals.');
+  if (res.status === 401 || res.status === 403) throw searchError('USDA didn’t accept your API key. Check it under Goals, or clear it to use the shared key.');
+  if (!res.ok) throw searchError('The USDA food search isn’t responding. Try again in a minute, or enter the food manually.');
+  const { foods = [] } = await res.json();
   return foods.sort((a, b) => (a.dataType === 'Branded') - (b.dataType === 'Branded')).map(fromUSDA); // whole foods first
 }
 
+let searchId = 0; // only the latest search may show its results
 async function searchOnline() {
-  const q = $('#q').value.trim();
+  const q = $('#q').value.trim(), id = ++searchId;
   if (!q) return;
   $('#results').innerHTML = '<li><small>Searching…</small></li>';
   try {
@@ -480,9 +539,11 @@ async function searchOnline() {
     } else {
       found = await searchUSDA(q);
     }
+    if (id !== searchId) return;
     showHits([...localHits(q), ...found.filter(Boolean)], 'No results found online. Enter the food below instead.');
   } catch (e) {
-    const msg = e.message?.startsWith('Rate') ? e.message : 'Search failed. Check your connection, or enter the food manually.';
+    if (id !== searchId) return;
+    const msg = e.forUser ? e.message : 'Search failed. Check your connection, or enter the food manually.';
     $('#results').innerHTML = `<li><small>${esc(msg)}</small></li>`;
   }
 }
@@ -520,9 +581,10 @@ $('#scanBtn').onclick = async () => {
       await new Promise(res => setTimeout(res, 200));
     }
   } catch (e) {
-    msg.textContent = e.name === 'NotAllowedError'
-      ? 'Camera permission was denied. Allow it in your browser settings.'
-      : 'Camera unavailable. It only works when the app is opened from an https:// address.';
+    msg.textContent = e.name === 'NotAllowedError' ? 'Camera permission was denied. Allow it in your browser settings.'
+      : e.name === 'NotFoundError' ? 'No camera was found on this device.'
+      : !isSecureContext ? 'The camera only works when the app is opened from an https:// address.'
+      : 'Couldn’t start the scanner. Check your internet connection and try again.';
   } finally {
     stream?.getTracks().forEach(t => t.stop());
   }
@@ -559,10 +621,14 @@ $('#ingredients').onclick = e => {
   if (i != null) { ingredients.splice(+i, 1); renderRecipe(); }
 };
 rForm.onsubmit = e => {
-  if (e.submitter?.value === 'ok' && !ingredients.length) { e.preventDefault(); alert('Add at least one ingredient.'); }
+  if (!ingredients.length) {
+    e.preventDefault();
+    $('#recipeDlg').returnValue = ''; // not saved, so a later Back/Esc mustn't count as OK
+    alert('Add at least one ingredient.');
+  }
 };
 $('#recipeDlg').onclose = () => {
-  if ($('#recipeDlg').returnValue !== 'ok') return;
+  if (closedWith($('#recipeDlg')) !== 'ok') return;
   const n = +rForm.servings.value || 1, t = totals(ingredients);
   const food = { name: rForm.name.value.trim(), unit: RECIPE_UNIT, servings: n, ingredients };
   NUT.forEach(k => food[k] = t[k] / n);
@@ -683,7 +749,7 @@ $('#profileBtn').onclick = () => {
 };
 
 $('#profileDlg').onclose = () => {
-  if ($('#profileDlg').returnValue !== 'ok') return;
+  if (closedWith($('#profileDlg')) !== 'ok') return;
   const imp = pImperial(), h = +pForm.height.value, w = +pForm.pweight.value;
   Object.assign(S.profile, {
     name: pForm.name.value.trim(),
@@ -754,7 +820,6 @@ $('#calcBtn').onclick = () => {
 
 // Save keeps you on the Goals screen; Cancel or another tab leaves without saving.
 gForm.onsubmit = e => {
-  if (e.submitter?.value !== 'ok') return;
   e.preventDefault();
   saveGoals();
   calcKg = null; // already saved; a later Save without Calculate shouldn't re-record it
@@ -778,6 +843,7 @@ $('#exportBtn').onclick = () => {
   a.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 1)], { type: 'application/json' }));
   a.download = `macro-tracker-${today()}.json`;
   a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000); // free the file's memory once the download has started
   S.exported = true; // Safe Keeper
   save(); render();
 };
