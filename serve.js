@@ -1,6 +1,9 @@
 // Tiny static server for local preview: `node serve.js` → http://localhost:8123
 const http = require('http'), fs = require('fs'), path = require('path');
-const root = __dirname, types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css' };
+const root = __dirname, types = {
+  '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css',
+  '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json',
+};
 
 http.createServer((req, res) => {
   let p;

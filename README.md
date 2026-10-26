@@ -13,6 +13,7 @@ A free calorie, macro and water tracker that runs in your phone's browser. Your 
 - **Progress**: weight chart, daily logging streak, and 41 achievements (two of them secret).
 - **Settings**: lbs/in or kg/cm, and backup export and restore.
 - **Light and dark mode**: one tap on the sun/moon button. It follows your phone's setting until you tap it.
+- **Works offline**: once opened, the app loads without a connection (food search still needs one), and updates arrive the next time you open it online.
 
 ## Run it locally
 
@@ -31,7 +32,7 @@ Then open http://localhost:8123.
 1. Push this repository to GitHub.
 2. In the repository, go to **Settings → Pages**, set **Source** to "Deploy from a branch", choose `main` and `/ (root)`, and save.
 3. Open the `https://<your-username>.github.io/<repo-name>/` address on your phone.
-4. Use **Share → Add to Home Screen** (iPhone) or **⋮ → Add to Home screen** (Android) so it opens like an app.
+4. Use **Share → Add to Home Screen** (iPhone) or **⋮ → Install app / Add to Home screen** (Android). It installs as "Macros" with its own icon and opens full screen.
 
 ## Your data
 
@@ -50,4 +51,6 @@ Text search uses USDA's shared `DEMO_KEY`, which allows only a small number of s
 | `index.html` | Page structure: diary screen, tabs, Goals and Profile screens, and pop-up sheets |
 | `styles.css` | All styling, including light and dark themes |
 | `app.js` | All app logic: diary, search, scanner, recipes, goals, streaks and achievements |
+| `sw.js` | Service worker: offline support and update handling |
+| `manifest.webmanifest`, `icon*` | Home-screen app name, icon and full-screen launch |
 | `serve.js` | Optional local web server for testing (`node serve.js`) |

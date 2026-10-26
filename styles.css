@@ -83,7 +83,8 @@ button {
 
 button[value=ok] { background: var(--fg); color: var(--bg); }  /* primary action in a form */
 button.link { padding: 10px 0; border: 0; color: var(--accent); }
-button.del { padding: 10px 4px; color: var(--muted); font-weight: 400; }
+/* 44px is a comfortable tap size; the negative margin keeps rows from growing taller */
+button.del { min-width: 44px; min-height: 44px; margin: -8px -8px -8px 0; padding: 0; color: var(--muted); font-weight: 400; }
 
 /* ==========================================================================
    Header: day switcher and menu
@@ -210,8 +211,8 @@ button.icon svg { width: 23px; height: 23px; fill: none; stroke: currentColor; s
 .row .change { width: 48px; text-align: right; }
 .mac { margin-left: .7em; } /* P / C / F macros after a serving */
 
-.cups { display: grid; grid-template-columns: repeat(8, max-content); gap: 4px 8px; padding: 12px 0 2px; }
-.cups button { padding: 4px; border: 0; border-radius: 6px; color: var(--fg); }
+.cups { display: grid; grid-template-columns: repeat(8, max-content); gap: 2px; padding: 10px 0 2px; }
+.cups button { padding: 7px 6px; border: 0; border-radius: 6px; color: var(--fg); }
 .cups svg { width: 26px; height: 30px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
 .cups .full svg { fill: currentColor; }
 
@@ -250,9 +251,22 @@ dialog label { display: flex; flex-direction: column; gap: 4px; font-size: .85re
 .bar { display: flex; gap: 8px; }
 .bar input { flex: 1; min-width: 0; }
 #results { max-height: 240px; margin: 8px 0; padding: 0; overflow: auto; list-style: none; border-top: 1px solid var(--line); }
-#results li { padding: 8px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
-#results li:hover { background: var(--wash); }
+#results li { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+#results li > small { padding: 8px 4px; }
 #results small { display: block; }
+#results .hit {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 4px 8px 10px;
+  border: 0;
+  border-left: 4px solid transparent; /* shows which result is picked */
+  border-radius: 0;
+  text-align: left;
+  font-weight: 400;
+}
+#results .hit:hover { background: var(--wash); }
+#results .hit[aria-pressed=true] { border-left-color: var(--fg); background: var(--wash); font-weight: 600; }
+#results .link { margin-right: 4px; white-space: nowrap; }
 
 #video { width: 100%; border-radius: 8px; background: #000; }
 

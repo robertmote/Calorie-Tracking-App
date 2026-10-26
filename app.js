@@ -102,12 +102,20 @@ const totals = entries => entries.reduce((t, e) => (NUT.forEach(k => t[k] += e[k
 // ---------- Units ----------
 const imperial = () => S.profile.units === 'imperial';
 const wUnit = () => imperial() ? 'lbs' : 'kg';
-const showW = kg => +(imperial() ? kg * LB : kg).toFixed(1); // kg → display units
+// Stored values are kg, cm and ml; these convert to and from what's shown (lbs/in/oz or kg/cm/ml).
+// `imp` defaults to the saved setting; Profile passes its own toggle while you're editing.
+const toKg = (v, imp = imperial()) => imp ? v / LB : v;
+const fromKg = (kg, imp = imperial()) => +(imp ? kg * LB : kg).toFixed(1);
+const toCm = (v, imp = imperial()) => imp ? v * IN : v;
+const fromCm = (cm, imp = imperial()) => +(imp ? cm / IN : cm).toFixed(1);
+const toMl = v => imperial() ? v * OZ : v;
+const fromMl = ml => r(imperial() ? ml / OZ : ml);
+const showW = kg => fromKg(kg);
 const latestKg = () => Object.keys(S.days).sort().reverse().map(k => S.days[k].weight).find(Boolean);
 
 const waterUnit = () => imperial() ? 'oz' : 'ml';
 const cupMl = () => imperial() ? 8 * OZ : 250;
-const showWater = ml => r(imperial() ? ml / OZ : ml).toLocaleString();
+const showWater = ml => fromMl(ml).toLocaleString();
 const waterGoal = () => S.goals.waterMl ?? 128 * OZ;
 
 // ---------- Diary screen ----------
@@ -170,7 +178,7 @@ function renderLabel(d) {
 }
 
 const entryRow = (e, attr) => `<div class="row">
-  <div>${esc(e.name)}<small>${+e.qty} × ${esc(e.unit)}<span class="mac">P ${r(e.p * e.qty)} C ${r(e.c * e.qty)} F ${r(e.f * e.qty)}</span></small></div>
+  <div>${esc(e.name)}<small>${+(+e.qty).toFixed(2)} × ${esc(e.unit)}<span class="mac">P ${r(e.p * e.qty)} C ${r(e.c * e.qty)} F ${r(e.f * e.qty)}</span></small></div>
   <span>${r(e.kcal * e.qty)}</span>
   <button class="link del" ${attr} aria-label="Delete ${esc(e.name)}">✕</button>
 </div>`;
@@ -220,6 +228,8 @@ function applyTheme(t) {
   const dark = isDark(), btn = $('#themeBtn');
   btn.classList.toggle('dark', dark);
   btn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+  // The phone's status/browser bar matches the app, including when the button overrides the phone's setting.
+  document.querySelectorAll('meta[name=theme-color]').forEach(m => m.content = dark ? '#000000' : '#ffffff');
 }
 
 $('#themeBtn').onclick = () => {
@@ -276,7 +286,7 @@ function onWater(b) {
   } else {
     const v = parseFloat(prompt(`How much water (${waterUnit()})?`));
     if (!(v > 0)) return;
-    d.water = (d.water || 0) + (imperial() ? v * OZ : v);
+    d.water = (d.water || 0) + toMl(v);
   }
   save(); render();
 }
@@ -453,8 +463,10 @@ let target = 'diary';   // 'diary' or 'recipe': where the Add button puts the fo
 const NO_SAVED_MATCH = 'Nothing saved matches. Tap Search to look it up online, or enter it below.';
 function showHits(list, empty = NO_SAVED_MATCH) {
   hits = list;
-  $('#results').innerHTML = list.map((f, i) => `<li data-i="${i}">${esc(f.name)}
-    <small>${r(f.kcal)} kcal per ${esc(f.unit)}<span class="mac">P ${r(f.p)} C ${r(f.c)} F ${r(f.f)}</span></small>
+  // Each result is a real button, so it works with a keyboard and screen readers.
+  $('#results').innerHTML = list.map((f, i) => `<li>
+    <button type="button" class="hit" data-i="${i}" aria-pressed="false">${esc(f.name)}
+      <small>${r(f.kcal)} kcal per ${esc(f.unit)}<span class="mac">P ${r(f.p)} C ${r(f.c)} F ${r(f.f)}</span></small></button>
     ${f.ingredients && target === 'diary' ? `<button type="button" class="link" data-edit="${i}">Edit recipe</button>` : ''}</li>`).join('')
     || `<li><small>${empty}</small></li>`;
 }
@@ -479,8 +491,13 @@ $('#searchBtn').onclick = searchOnline;
 $('#results').onclick = e => {
   const edit = e.target.dataset.edit;
   if (edit != null) { $('#addDlg').close('cancel'); return openRecipe(hits[edit]); }
-  const f = hits[e.target.closest('li')?.dataset.i];
-  if (f) for (const k of ['name', 'unit', ...NUT]) form[k].value = typeof f[k] === 'number' ? +f[k].toFixed(1) : f[k];
+  const hit = e.target.closest('.hit'), f = hits[hit?.dataset.i];
+  if (!f) return;
+  for (const k of ['name', 'unit', ...NUT]) form[k].value = typeof f[k] === 'number' ? +f[k].toFixed(1) : f[k];
+  // Show which result was picked, then go straight to the number of servings.
+  document.querySelectorAll('#results .hit').forEach(b => b.setAttribute('aria-pressed', b === hit));
+  form.qty.focus();
+  form.qty.select();
 };
 
 const sameFood = (a, b) => a.name === b.name && a.unit === b.unit;
@@ -741,8 +758,8 @@ pForm.onchange = e => {
   if (e.target.name !== 'units') return;
   // Convert what's typed so switching units doesn't scramble it.
   const h = +pForm.height.value, w = +pForm.pweight.value, imp = pImperial();
-  if (h) pForm.height.value = +(imp ? h / IN : h * IN).toFixed(1);
-  if (w) pForm.pweight.value = +(imp ? w * LB : w / LB).toFixed(1);
+  if (h) pForm.height.value = imp ? fromCm(h, true) : fromCm(toCm(h, true), false);
+  if (w) pForm.pweight.value = imp ? fromKg(w, true) : fromKg(toKg(w, true), false);
   setProfileUnits();
 };
 
@@ -755,8 +772,8 @@ $('#profileBtn').onclick = () => {
   pForm.sex.value = p.sex || 'm';
   pForm.age.value = p.age || '';
   pForm.activity.value = p.activity || '1.2';
-  pForm.height.value = p.cm ? +(imp ? p.cm / IN : p.cm).toFixed(1) : '';
-  pForm.pweight.value = kg ? +(imp ? kg * LB : kg).toFixed(1) : '';
+  pForm.height.value = p.cm ? fromCm(p.cm, imp) : '';
+  pForm.pweight.value = kg ? fromKg(kg, imp) : '';
   $('#bestStreak').innerHTML = best ? `<small>Longest streak: <b>${best} ${best === 1 ? 'day' : 'days'}</b></small>` : '';
   setProfileUnits();
   showPage('profileBtn');
@@ -771,9 +788,9 @@ $('#profileDlg').onclose = () => {
     sex: pForm.sex.value,
     age: +pForm.age.value || undefined,
     activity: pForm.activity.value,
-    cm: h ? (imp ? h * IN : h) : undefined,
+    cm: h ? toCm(h, imp) : undefined,
   });
-  const kg = imp ? w / LB : w;
+  const kg = toKg(w, imp);
   if (w && Math.abs(kg - (latestKg() || 0)) > 0.05) day(today()).weight = kg; // a new current weight is today's weigh-in
   save(); render();
 };
@@ -813,7 +830,7 @@ $('#goalsBtn').onclick = () => {
   $('#calcMsg').innerHTML = '';
   fillRates(S.profile.rate ?? -500);
   gForm.goalWeight.value = S.goals.weightKg ? showW(S.goals.weightKg) : '';
-  gForm.waterGoal.value = r(imperial() ? waterGoal() / OZ : waterGoal());
+  gForm.waterGoal.value = fromMl(waterGoal());
   gForm.querySelector('.waterUnit').textContent = waterUnit();
   NUT.forEach(k => gForm[k].value = S.goals[k]);
   gForm.usdaKey.value = S.usdaKey || '';
@@ -844,8 +861,8 @@ function saveGoals() {
   const water = +gForm.waterGoal.value, goalWeight = +gForm.goalWeight.value;
   S.profile.rate = +gForm.rate.value;
   if (calcKg) S.profile.calcKg = calcKg;
-  S.goals.waterMl = water > 0 ? (imperial() ? water * OZ : water) : undefined;               // empty → default 128 oz
-  S.goals.weightKg = goalWeight > 0 ? (imperial() ? goalWeight / LB : goalWeight) : undefined; // stored in kg like all weights
+  S.goals.waterMl = water > 0 ? toMl(water) : undefined;          // empty → default 128 oz
+  S.goals.weightKg = goalWeight > 0 ? toKg(goalWeight) : undefined; // stored in kg like all weights
   NUT.forEach(k => S.goals[k] = +gForm[k].value || 0);
   S.usdaKey = gForm.usdaKey.value.trim();
   const stored = save();
@@ -884,3 +901,7 @@ $('#importFile').onchange = async e => {
 applyTheme(S.profile.theme);
 render();
 booted = true;
+
+// Offline support (see sw.js). Service workers only run on https:// or localhost, not when
+// index.html is opened as a file, so the app still works without one.
+if ('serviceWorker' in navigator && isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});
