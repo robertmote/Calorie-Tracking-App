@@ -1,8 +1,9 @@
 // Tiny static server for local preview: `node serve.js` → http://localhost:8123
+// Only reachable from this computer, and never serves hidden files or folders (.git, .claude, ...).
 const http = require('http'), fs = require('fs'), path = require('path');
 const root = __dirname, types = {
   '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css',
-  '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json',
+  '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.wasm': 'application/wasm',
 };
 
 http.createServer((req, res) => {
@@ -11,8 +12,9 @@ http.createServer((req, res) => {
   catch { return res.writeHead(400).end('Bad request'); } // malformed %-escapes would otherwise crash the server
   const file = path.join(root, p === '/' ? 'index.html' : p);
   if (!file.startsWith(root + path.sep)) return res.writeHead(403).end(); // block ../ escapes
+  if (path.relative(root, file).split(path.sep).some(part => part.startsWith('.'))) return res.writeHead(404).end('Not found');
   fs.readFile(file, (err, data) => {
     if (err) return res.writeHead(404).end('Not found');
     res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' }).end(data);
   });
-}).listen(8123, () => console.log('Serving on http://localhost:8123'));
+}).listen(8123, '127.0.0.1', () => console.log('Serving on http://localhost:8123'));

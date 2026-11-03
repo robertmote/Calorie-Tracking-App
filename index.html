@@ -4,6 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="A calorie, macro and water tracker that keeps your diary on your own device.">
+  <!-- Content Security Policy: only this site's own scripts may run (plus the theme snippet below, by its
+       sha256 fingerprint, which must be updated if that snippet changes), and data may only be sent to the
+       two food databases. 'wasm-unsafe-eval' lets the barcode reader in vendor/ run. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self';
+    script-src 'self' 'sha256-Z2ZDl25+dUs+Su7Ic/9eULCVq9tcayNuVtVYK0wjYKc=' 'wasm-unsafe-eval';
+    style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;
+    connect-src 'self' https://api.nal.usda.gov https://world.openfoodfacts.org;
+    img-src 'self' data:; object-src 'none'; base-uri 'none'">
   <title>Macro Tracker</title>
   <!-- Home-screen app: name, icon, full-screen launch, and the browser bar color for each theme -->
   <link rel="manifest" href="manifest.webmanifest">
@@ -156,6 +164,12 @@
 <dialog id="recipeDlg" aria-labelledby="recipeTitle">
   <form method="dialog">
     <h2 id="recipeTitle">New recipe</h2>
+    <!-- Reads a screenshot from another app (e.g. MyFitnessPal) on the phone; the image is never uploaded. -->
+    <div class="import">
+      <button type="button" id="importBtn">Import from screenshot</button>
+      <input type="file" id="importImage" accept="image/*" hidden>
+      <p id="importMsg" aria-live="polite"></p>
+    </div>
     <div class="grid">
       <label class="wide">Recipe name<input name="name" required></label>
       <label>Makes (servings)<input name="servings" type="number" step="any" min="0.1" value="1" required></label>
@@ -190,6 +204,7 @@
   <div><button class="link" id="retrySave">Try again</button><button class="link" data-go="exportBtn">Export a backup</button></div>
 </div>
 
+<script src="nutrition-parser.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

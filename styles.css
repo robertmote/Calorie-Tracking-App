@@ -246,6 +246,21 @@ dialog label { display: flex; flex-direction: column; gap: 4px; font-size: .85re
 .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .actions.start { justify-content: flex-start; flex-wrap: wrap; }
 
+/* Recipe totals: whole recipe and per serving */
+.totals { width: 100%; margin: 10px 0 4px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.totals th, .totals td { padding: 6px 0 6px 6px; text-align: right; }
+.totals thead th { font-size: .75rem; font-weight: 600; color: var(--muted); }
+.totals tbody tr { border-top: 1px solid var(--line); }
+.totals tbody th { padding-left: 0; text-align: left; font-weight: 700; }
+.totals tbody th small { display: block; font-weight: 400; }
+.totals tbody td { font-weight: 600; }
+
+/* Recipe import from a screenshot */
+.import { margin: 4px 0 6px; }
+.import button { width: 100%; }
+#importMsg { margin: 6px 0 0; font-size: .85rem; color: var(--muted); }
+#importMsg:empty { display: none; }
+
 /* Add food */
 #addDlg h2 { justify-content: flex-start; align-items: center; gap: 10px; }
 .bar { display: flex; gap: 8px; }

@@ -8,6 +8,7 @@ A free calorie, macro and water tracker that runs in your phone's browser. Your 
 - **Nutrition Facts summary**: calories left and % of goal for fat, carbs and protein.
 - **Food search**: USDA FoodData Central for text searches, Open Food Facts for barcodes, plus camera barcode scanning.
 - **My Foods and recipes**: everything you log is saved for quick re-use. Recipes calculate per-serving nutrition and can be edited later.
+- **Import recipes from screenshots**: in **New recipe → Import from screenshot**, pick a screenshot from another app (e.g. MyFitnessPal). The text is read on your phone (nothing is uploaded), the name, servings and per-serving calories, protein, carbs and fat are filled in, and you check them before saving.
 - **Goals**: calculated from your profile (Mifflin-St Jeor), with a lose/maintain/gain rate, goal weight and daily water goal.
 - **Water tracker**: tap cups to log water.
 - **Progress**: weight chart, daily logging streak, and 41 achievements (two of them secret).
@@ -38,7 +39,8 @@ Then open http://localhost:8123.
 
 - Everything is saved in the browser's local storage on the device you use. Different browsers or devices don't share data.
 - Clearing the browser's website data erases the diary. Use **Profile → Export backup** regularly, and **Restore from backup** to bring it back or move it to a new phone.
-- Food searches send only the search text or barcode to USDA or Open Food Facts.
+- Food searches send only the search text or barcode to USDA or Open Food Facts. A Content Security Policy blocks the app from sending data anywhere else.
+- Exported backups leave out your USDA API key, so they're safe to share for troubleshooting (they do contain your diary).
 
 ## USDA API key
 
@@ -53,4 +55,6 @@ Text search uses USDA's shared `DEMO_KEY`, which allows only a small number of s
 | `app.js` | All app logic: diary, search, scanner, recipes, goals, streaks and achievements |
 | `sw.js` | Service worker: offline support and update handling |
 | `manifest.webmanifest`, `icon*` | Home-screen app name, icon and full-screen launch |
+| `vendor/` | Barcode reader (MIT) and screenshot text reader (Tesseract, Apache-2.0), kept locally instead of loaded from a CDN; see `vendor/README.md` |
+| `nutrition-parser.js` | Finds recipe name, servings and nutrition in text read from a screenshot; tested by `node --test test/nutrition-parser.test.js` |
 | `serve.js` | Optional local web server for testing (`node serve.js`) |

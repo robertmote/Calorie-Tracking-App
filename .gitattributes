@@ -1,0 +1,6 @@
+# Store binary files byte-for-byte (no line-ending conversion)
+*.wasm binary
+*.png binary
+*.gz binary
+# Third-party files are kept exactly as published
+vendor/** -text

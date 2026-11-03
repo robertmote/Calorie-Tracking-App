@@ -472,17 +472,28 @@ function showHits(list, empty = NO_SAVED_MATCH) {
 }
 const localHits = q => S.foods.filter(f => f.name.toLowerCase().includes(q.toLowerCase())).slice(0, 30);
 
-function openAdd(meal) { // meal = null → adding a recipe ingredient
+let importing = false; // the sheet is showing numbers read from a screenshot
+
+// meal = null → adding a recipe ingredient. check = { values, note } → numbers read from a screenshot,
+// shown in the normal editable fields so every one can be checked before it's added.
+function openAdd(meal, check) {
   target = meal ? 'diary' : 'recipe';
+  importing = !!check;
   form.reset();
   form.meal.value = meal || MEALS[0];
   form.meal.hidden = !meal;
-  $('#addTitle').textContent = meal ? 'Add to' : 'Add ingredient';
+  $('#addTitle').textContent = check ? 'Check the numbers' : meal ? 'Add to' : 'Add ingredient';
   $('#q').value = '';
   searchId++;
-  showHits(localHits(''));
+  if (check) {
+    for (const [k, v] of Object.entries(check.values)) if (v !== undefined) form[k].value = v;
+    hits = [];
+    $('#results').innerHTML = `<li><small>${esc(check.note)}</small></li>`;
+  } else {
+    showHits(localHits(''));
+  }
   $('#addDlg').showModal();
-  $('#q').focus();
+  (check ? form.kcal : $('#q')).focus();
 }
 
 $('#q').oninput = e => { searchId++; showHits(localHits(e.target.value)); }; // typing cancels a pending search
@@ -507,6 +518,8 @@ function rememberFood(food) {
 }
 
 $('#addDlg').onclose = () => {
+  const fromScreenshot = importing;
+  importing = false;
   if (closedWith($('#addDlg')) !== 'ok') return;
   const fd = Object.fromEntries(new FormData(form));
   const food = { name: fd.name.trim(), unit: fd.unit.trim() };
@@ -514,7 +527,7 @@ $('#addDlg').onclose = () => {
   const entry = { qty: +fd.qty || 1, ...food };
   if (target === 'recipe') { ingredients.push(entry); renderRecipe(); }
   else day().entries.push({ meal: fd.meal, ...entry, at: Date.now() }); // `at` = when it was logged (Early Bird / Night Owl)
-  rememberFood(food);
+  if (!fromScreenshot) rememberFood(food); // a screenshot's per-serving numbers aren't a food to reuse on their own
   save(); render();
 };
 
@@ -549,8 +562,9 @@ function fromUSDA(x) {
 const searchError = msg => Object.assign(new Error(msg), { forUser: true }); // a message worth showing as-is
 
 async function searchUSDA(q) {
-  const key = encodeURIComponent(S.usdaKey || 'DEMO_KEY');
-  const res = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${key}&query=${encodeURIComponent(q)}&pageSize=25`);
+  // The key goes in a header rather than the address, so it doesn't end up in server or proxy logs.
+  const res = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(q)}&pageSize=25`,
+    { headers: { 'X-Api-Key': S.usdaKey || 'DEMO_KEY' } });
   if (res.status === 429) throw searchError('Too many searches with the shared key. Add your free USDA API key under Goals.');
   if (res.status === 401 || res.status === 403) throw searchError('USDA didn’t accept your API key. Check it under Goals, or clear it to use the shared key.');
   if (!res.ok) throw searchError('The USDA food search isn’t responding. Try again in a minute, or enter the food manually.');
@@ -581,11 +595,20 @@ async function searchOnline() {
 }
 
 // ---------- Barcode scanner: native BarcodeDetector on Android, WASM polyfill elsewhere (iPhone). Needs https. ----------
+// The polyfill (barcode-detector 3.2.2 + zxing-wasm 3.1.3, MIT) is kept in vendor/ rather than loaded from a CDN,
+// so no outside code runs in the app and scanning works offline. See vendor/README.md to update it.
+let polyfill; // loaded and configured once, on first scan
 async function getDetector() {
   const formats = ['ean_13', 'ean_8', 'upc_a', 'upc_e'];
-  const native = 'BarcodeDetector' in window && (await BarcodeDetector.getSupportedFormats()).includes('ean_13');
-  const BD = native ? BarcodeDetector : (await import('https://cdn.jsdelivr.net/npm/barcode-detector@3.2.2/ponyfill/+esm')).BarcodeDetector;
-  return new BD({ formats });
+  if ('BarcodeDetector' in window && (await BarcodeDetector.getSupportedFormats()).includes('ean_13')) return new BarcodeDetector({ formats });
+  polyfill ??= import('./vendor/barcode-detector/ponyfill.js').then(m => {
+    m.prepareZXingModule({ // load the .wasm from vendor/ instead of its default CDN
+      overrides: { locateFile: (file, prefix) => file.endsWith('.wasm') ? new URL(`vendor/zxing-wasm/${file}`, location.href).href : prefix + file },
+    });
+    return m.BarcodeDetector;
+  });
+  polyfill.catch(() => polyfill = undefined); // let a failed load (e.g. offline before first use) retry next time
+  return new (await polyfill)({ formats });
 }
 
 $('#scanBtn').onclick = async () => {
@@ -629,9 +652,14 @@ let editing = null;    // name of the recipe being edited, null when creating
 
 function renderRecipe() {
   const t = totals(ingredients), n = +rForm.servings.value || 1;
+  // Whole-recipe totals and per-serving values, updated as ingredients or servings change.
+  const row = (label, d) => `<tr><th scope="row">${label}</th><td>${num(t.kcal / d)}</td><td>${r(t.p / d)}g</td><td>${r(t.c / d)}g</td><td>${r(t.f / d)}g</td></tr>`;
   $('#ingredients').innerHTML = ingredients.map((e, i) => entryRow(e, `data-rm="${i}"`)).join('')
     + (ingredients.length
-      ? `<p><small>Per serving: ${r(t.kcal / n)} kcal<span class="mac">P ${r(t.p / n)} C ${r(t.c / n)} F ${r(t.f / n)}</span></small></p>`
+      ? `<table class="totals">
+          <thead><tr><td></td><th scope="col">Calories</th><th scope="col">Protein</th><th scope="col">Carbs</th><th scope="col">Fat</th></tr></thead>
+          <tbody>${row('Whole recipe', 1)}${row(`Per serving <small>(of ${+n.toFixed(2)})</small>`, n)}</tbody>
+        </table>`
       : '<p><small>No ingredients yet.</small></p>');
 }
 
@@ -641,12 +669,70 @@ function openRecipe(food) {
   ingredients = food ? food.ingredients.map(x => ({ ...x })) : []; // a copy, so Cancel discards changes
   if (food) { rForm.name.value = food.name; rForm.servings.value = food.servings; }
   $('#recipeTitle').textContent = food ? 'Edit recipe' : 'New recipe';
+  $('#importMsg').textContent = '';
   renderRecipe();
   $('#recipeDlg').showModal();
 }
 
 $('#recipeBtn').onclick = () => openRecipe(null);
 $('#addIng').onclick = () => openAdd(null);
+
+// ---------- Recipe import from a screenshot (e.g. MyFitnessPal), read on the phone ----------
+// Tesseract (vendor/tesseract, Apache-2.0) turns the image into text on-device; nothing is uploaded.
+// nutrition-parser.js then finds the name, servings and per-serving calories/protein/carbs/fat.
+let ocr, ocrProgress = () => {};
+const hasSimd = () => WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11]));
+
+function textReader() { // loaded on first use only (about 7 MB, then kept for offline use)
+  ocr ??= import('./vendor/tesseract/tesseract.esm.min.js').then(({ default: Tesseract }) => {
+    const base = new URL('vendor/tesseract/', location.href).href;
+    return Tesseract.createWorker('eng', 1, {
+      workerPath: base + 'worker.min.js',
+      corePath: base + `core/tesseract-core-${hasSimd() ? 'simd-lstm' : 'lstm'}.wasm.js`, // SIMD build on any recent phone
+      langPath: base + 'lang',
+      workerBlobURL: false,  // load the worker from its file, so the Content Security Policy needn't allow blob: scripts
+      cacheMethod: 'none',   // the service worker already keeps these files for offline use
+      logger: m => ocrProgress(m),
+    }).then(async worker => {
+      // "Sparse text" layout: finds scattered text such as a large calorie number set apart from its label,
+      // which the default layout tends to skip on app screenshots.
+      await worker.setParameters({ tessedit_pageseg_mode: '11' });
+      return worker;
+    });
+  });
+  ocr.catch(() => ocr = undefined); // e.g. offline before first use: try again next time
+  return ocr;
+}
+
+$('#importBtn').onclick = () => $('#importImage').click();
+$('#importImage').onchange = async e => {
+  const file = e.target.files[0], msg = $('#importMsg');
+  e.target.value = '';
+  if (!file) return;
+  msg.textContent = 'Getting the text reader ready…';
+  ocrProgress = m => { if (m.status === 'recognizing text') msg.textContent = `Reading the screenshot… ${r(m.progress * 100)}%`; };
+  let found;
+  try {
+    const { data } = await (await textReader()).recognize(file);
+    found = parseNutrition(data.text);
+  } catch {
+    msg.textContent = 'Couldn’t read that image. The first import needs an internet connection to download the text reader; try again.';
+    return;
+  }
+  const count = NUT.filter(k => found[k] !== undefined).length;
+  if (!count) {
+    msg.textContent = 'No calories, protein, carbs or fat found. Try a screenshot that shows the recipe’s nutrition section, or add an ingredient by hand.';
+    return;
+  }
+  if (found.name && !rForm.name.value.trim()) rForm.name.value = found.name;
+  if (found.servings) rForm.servings.value = found.servings;
+  msg.textContent = '';
+  // One ingredient holding the per-serving numbers × servings, so the recipe's per-serving values match the screenshot.
+  openAdd(null, {
+    values: { name: 'Nutrition per serving (from screenshot)', unit: 'serving', qty: +rForm.servings.value || 1, kcal: found.kcal, p: found.p, c: found.c, f: found.f },
+    note: `Found ${count} of 4 values per serving. Check each one against your screenshot and fix any that are wrong, then tap Add.`,
+  });
+};
 rForm.servings.oninput = renderRecipe;
 $('#ingredients').onclick = e => {
   const i = e.target.dataset.rm;
@@ -873,7 +959,8 @@ function saveGoals() {
 // ---------- Backup (browser storage can be cleared; export regularly) ----------
 $('#exportBtn').onclick = () => {
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 1)], { type: 'application/json' }));
+  const { usdaKey, ...backup } = S; // backups may be shared, so leave the API key out
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 1)], { type: 'application/json' }));
   a.download = `macro-tracker-${today()}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 10000); // free the file's memory once the download has started
