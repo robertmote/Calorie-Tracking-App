@@ -25,7 +25,7 @@
     c: /\b(?:net|fib(?:er|re)|sugars?)\b/i,
     p: null,
   };
-  const UI_WORDS = /^(?:edit|done|save|cancel|back|close|share|recipes?|nutrition(?:\s+facts)?|ingredients?|directions?|instructions?|servings?|serving\s+size|per\s+serving|log|add|calories|amount\s+per\s+serving|my\s+recipes)\b/i;
+  const UI_WORDS = /^(?:edit|done|save|cancel|back|close|share|recipes?|nutrition(?:\s+facts)?|show\s+nutrition|ingredients?|directions?|instructions?|servings?|serving\s+size|per\s+serving|log|add(?:\s+meal)?|meal\s+items|calories|amount\s+per\s+serving|my\s+recipes)\b/i;
 
   const labelAt = (line, key) => {
     const m = LABEL[key].exec(line);
@@ -68,26 +68,61 @@
     return out;
   }
 
-  // OCR often reads a bold "g" as 9 ("12g" → "129", "36g" → "369g"). When all three macros were found, try
-  // dropping a trailing 9 and keep whichever version best matches the calories (4 kcal/g carbs and protein,
-  // 9 kcal/g fat). A real value ending in 9 is kept, because then the calories already add up.
-  function fixGReadAsNine(r) {
-    if (!r.kcal || ['c', 'p', 'f'].some(k => r[k] === undefined)) return;
-    const options = v => Number.isInteger(v) && v >= 19 && v % 10 === 9 ? [v, (v - 9) / 10] : [v];
-    const energyError = (c, p, f) => Math.abs(4 * c + 4 * p + 9 * f - r.kcal);
-    let best = { c: r.c, p: r.p, f: r.f, err: energyError(r.c, r.p, r.f) };
-    for (const c of options(r.c)) for (const p of options(r.p)) for (const f of options(r.f)) {
-      const err = energyError(c, p, f);
-      if (err < best.err) best = { c, p, f, err };
+  // Text clean-up shared by both passes: OCR "O" for zero, a lone 9 after a number is a misread "g"
+  // ("19.6 9" → "19.6 g"), and lines of stray symbols from icons and graphics are dropped.
+  const cleanLines = text => String(text)
+    .replace(/(?<=\d)[Oo](?=[\d.,]|\s*g\b)/g, '0')
+    .replace(/(\d)[ \t]+9(?=[ \t]*$|[ \t]+[A-Za-z])/gm, '$1 g')
+    .split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim())
+    .filter(l => /\d/.test(l) || (l.match(/[a-z]/gi) || []).length >= 2);
+
+  // OCR often reads a bold "g" as 9: "12g" → "129", "73.4 g" → "73.49", or "7349" when the decimal point is
+  // lost too. Try those readings and keep the combination that best matches what the screenshot itself says:
+  // each macro's % of calories (MyFitnessPal shows these) and/or the calories (4 kcal/g carbs and protein,
+  // 9 kcal/g fat). A real value ending in 9 stays, because then the numbers already agree.
+  function resolveMisreads(r, pct) {
+    if (['c', 'p', 'f'].some(k => r[k] === undefined) || (!r.kcal && !pct)) return;
+    const readings = v => {
+      const s = String(v), out = [{ v, cost: (s.split('.')[1] || '').length >= 2 ? 3 : 0 }]; // 2+ decimals: rare on labels
+      if (/9$/.test(s) && s.replace('.', '').length >= 2) {
+        const a = s.slice(0, -1).replace(/\.$/, '');
+        out.push({ v: +a, cost: 2 });
+        if (!a.includes('.') && a.length >= 2) out.push({ v: +(a.slice(0, -1) + '.' + a.slice(-1)), cost: 4 }); // decimal lost too
+      }
+      return out;
+    };
+    const error = (c, p, f) => {
+      const kcal = 4 * c + 4 * p + 9 * f;
+      let e = r.kcal ? 100 * Math.abs(kcal - r.kcal) / r.kcal : 0; // % off the calories
+      if (pct) e += Math.abs(400 * c / kcal - pct.c) + Math.abs(900 * f / kcal - pct.f) + Math.abs(400 * p / kcal - pct.p); // points off the %s
+      return e;
+    };
+    let best;
+    for (const c of readings(r.c)) for (const p of readings(r.p)) for (const f of readings(r.f)) {
+      const err = error(c.v, p.v, f.v), score = err + c.cost + p.cost + f.cost;
+      if (!best || score < best.score) best = { c: c.v, p: p.v, f: f.v, err, score };
     }
-    if (best.err <= Math.max(30, r.kcal * 0.15)) Object.assign(r, { c: best.c, p: best.p, f: best.f });
+    if (best.err <= (r.kcal && pct ? 20 : 15)) Object.assign(r, { c: best.c, p: best.p, f: best.f });
+  }
+
+  // Second pass helper: the calories beside a Calories/cal label that agree with an estimate (±15%).
+  function caloriesNear(text, estimate) {
+    const lines = cleanLines(text), found = [];
+    lines.forEach((l, i) => {
+      const m = labelAt(l, 'kcal');
+      if (!m) return;
+      found.push(...numbersIn(l, m.index + m[0].length));
+      for (let j = i - 2; j <= i + 2; j++) if (j !== i && numberOnly(lines[j])) found.push(...numbersIn(lines[j]));
+    });
+    const near = found.filter(n => fits('kcal', n) && n.unit !== 'kj' && Math.abs(n.v - estimate) <= estimate * 0.15)
+      .sort((a, b) => Math.abs(a.v - estimate) - Math.abs(b.v - estimate));
+    return near[0]?.v;
   }
 
   function parseNutrition(text) {
-    const lines = joinRuns(String(text)
-      .replace(/(?<=\d)[Oo](?=[\d.,]|\s*g\b)/g, '0') // OCR reads 0 as O: "2O g" → "20 g", "2O.5" → "20.5"
-      .split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean));
+    const lines = joinRuns(cleanLines(text));
     const result = {}, used = new Set(); // lines whose numbers already went to a label
+    let pct;                             // each macro's % of calories, when the screenshot shows them
 
     // 1. Columns: a line with several labels and no numbers, next to a line of numbers, matched left to right.
     for (let i = 0; i < lines.length; i++) {
@@ -96,8 +131,9 @@
       keys.sort((a, b) => labelAt(lines[i], a).index - labelAt(lines[i], b).index);
       const j = [i + 1, i - 1].find(n => numberOnly(lines[n]) && numbersIn(lines[n]).filter(x => x.unit !== '%').length >= keys.length);
       if (j === undefined) continue;
-      const nums = numbersIn(lines[j]).filter(n => n.unit !== '%');
+      const nums = numbersIn(lines[j]).filter(n => n.unit !== '%'), pcts = numbersIn(lines[j]).filter(n => n.unit === '%');
       keys.forEach((k, n) => { if (result[k] === undefined && fits(k, nums[n])) result[k] = pick(k, [nums[n]]); });
+      if (pcts.length === keys.length && ['c', 'p', 'f'].every(k => keys.includes(k))) pct = Object.fromEntries(keys.map((k, n) => [k, pcts[n].v]));
       used.add(j);
     }
 
@@ -121,7 +157,11 @@
         result[key] = v;
       }
     }
-    fixGReadAsNine(result);
+    resolveMisreads(result, pct);
+    if (result.kcal === undefined && ['c', 'p', 'f'].every(k => result[k] !== undefined)) { // last resort: 4/4/9
+      result.kcal = Math.round(4 * result.c + 4 * result.p + 9 * result.f);
+      result.kcalEstimated = true;
+    }
 
     // Servings: "6 servings", "Servings: 6", "Serves 4", "Makes 8" — within one line, and never
     // "serving size" or "per serving" (whose number is something else).
@@ -135,13 +175,13 @@
     const allLabels = new RegExp(KEYS.map(k => LABEL[k].source).join('|'), 'gi');
     result.name = lines.slice(0, 8).find(l =>
       !UI_WORDS.test(l) && !/^\d{1,2}[:.]\d{2}/.test(l) && !numbersIn(l).length
-      && (l.replace(allLabels, '').match(/[a-z]/gi) || []).length >= 3
+      && (l.replace(allLabels, '').match(/[a-z]/gi) || []).length >= 5 && /[a-z]/.test(l) // not OCR noise like "HNIC"
       && (l.match(/[a-z\s'&-]/gi) || []).length / l.length > 0.8) || '';
 
     for (const k of KEYS) if (result[k] === undefined || isNaN(result[k])) delete result[k];
     return result;
   }
 
-  if (typeof module !== 'undefined' && module.exports) module.exports = { parseNutrition };
-  else root.parseNutrition = parseNutrition;
+  if (typeof module !== 'undefined' && module.exports) module.exports = { parseNutrition, caloriesNear };
+  else Object.assign(root, { parseNutrition, caloriesNear });
 })(typeof window !== 'undefined' ? window : globalThis);

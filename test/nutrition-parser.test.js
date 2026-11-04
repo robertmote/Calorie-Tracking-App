@@ -77,3 +77,27 @@ test('column-mode OCR with the same misreads', () => check(
 
 test('a real value ending in 9 is kept when the calories add up', () =>
   assert.deepEqual(parseNutrition('Calories 271\nCarbs 19g\nFat 9g\nProtein 29g'), { name: '', kcal: 271, c: 19, f: 9, p: 29 }));
+
+// Real MyFitnessPal "Add Meal" screenshot (dark mode): 840 cal; 43% 87 g carbs, 22% 19.6 g fat, 36% 73.4 g protein.
+const real = require('./fixtures/mfp-add-meal-ocr.json');
+const { caloriesNear } = require('../nutrition-parser.js');
+
+test('real MFP screenshot (colors kept): "g" misreads fixed using the % of calories, calories estimated', () => {
+  const r = parseNutrition(real.colorKept);
+  assert.deepEqual({ c: r.c, f: r.f, p: r.p }, { c: 87, f: 19.6, p: 73.4 });
+  assert.equal(r.kcal, 818); // 4×87 + 9×19.6 + 4×73.4, since the ring's 840 wasn't readable in this pass
+  assert.equal(r.kcalEstimated, true);
+  assert.equal(r.name, '');  // nothing on this screen is the meal's name; OCR noise like "HNIC" isn't used
+});
+
+test('real MFP screenshot (no preparation): "8749", "19.69", "7349" resolve to within half a gram', () => {
+  // Without image preparation the reading is genuinely ambiguous (87 g and 87.4 g give the same % of calories),
+  // so this pass only has to land within 0.5 g. The app prepares the image, which reads exactly (test above).
+  const r = parseNutrition(real.original);
+  for (const [k, want] of Object.entries({ c: 87, f: 19.6, p: 73.4 })) assert.ok(Math.abs(r[k] - want) <= 0.5, k + ': ' + r[k]);
+});
+
+test('second pass finds the real calories beside "cal", checked against the estimate', () => {
+  assert.equal(caloriesNear(real.colorBlanked, 818), 840);
+  assert.equal(caloriesNear(real.colorBlanked, 400), undefined); // nothing near "cal" fits 400, so nothing is guessed
+});

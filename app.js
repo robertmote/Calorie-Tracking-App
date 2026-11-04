@@ -704,17 +704,50 @@ function textReader() { // loaded on first use only (about 7 MB, then kept for o
   return ocr;
 }
 
+// App screenshots (often light text on dark, small type, colored graphics) read far better after preparation:
+// grayscale, dark backgrounds flipped to dark-on-light, and enlarged to about 2400px wide (capped at 12
+// megapixels to stay within phone memory limits). With dropColor, strongly colored pixels such as rings and
+// charts are blanked; that finds numbers inside colored graphics, like MyFitnessPal's calorie ring.
+async function prepareImage(file, dropColor = false) {
+  const img = await createImageBitmap(file);
+  const scale = Math.min(3, Math.max(1, 2400 / img.width), Math.sqrt(12e6 / (img.width * img.height)));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(img.width * scale);
+  canvas.height = Math.round(img.height * scale);
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const data = ctx.getImageData(0, 0, canvas.width, canvas.height), px = data.data;
+  const gray = i => 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+  let sum = 0;
+  for (let i = 0; i < px.length; i += 64) sum += gray(i); // sample every 16th pixel
+  const dark = sum / (px.length / 64) < 128;
+  for (let i = 0; i < px.length; i += 4) {
+    let v = gray(i);
+    if (dropColor && Math.max(px[i], px[i + 1], px[i + 2]) - Math.min(px[i], px[i + 1], px[i + 2]) > 60) v = dark ? 0 : 255;
+    if (dark) v = 255 - v;
+    px[i] = px[i + 1] = px[i + 2] = v;
+  }
+  ctx.putImageData(data, 0, 0);
+  return new Promise((ok, fail) => canvas.toBlob(b => b ? ok(b) : fail(new Error('image')), 'image/png'));
+}
+
 $('#importBtn').onclick = () => $('#importImage').click();
 $('#importImage').onchange = async e => {
   const file = e.target.files[0], msg = $('#importMsg');
   e.target.value = '';
   if (!file) return;
   msg.textContent = 'Getting the text reader ready…';
-  ocrProgress = m => { if (m.status === 'recognizing text') msg.textContent = `Reading the screenshot… ${r(m.progress * 100)}%`; };
+  let step = 'Reading the screenshot';
+  ocrProgress = m => { if (m.status === 'recognizing text') msg.textContent = `${step}… ${r(m.progress * 100)}%`; };
   let found;
   try {
-    const { data } = await (await textReader()).recognize(file);
-    found = parseNutrition(data.text);
+    const reader = await textReader(), read = async blob => (await reader.recognize(blob)).data.text;
+    found = parseNutrition(await read(await prepareImage(file)));
+    if (found.kcalEstimated) { // calories weren't readable: a second read that ignores colored graphics, checked against the macros
+      step = 'Looking for the calories';
+      const kcal = caloriesNear(await read(await prepareImage(file, true)), found.kcal);
+      if (kcal) { found.kcal = kcal; delete found.kcalEstimated; }
+    }
   } catch {
     msg.textContent = 'Couldn’t read that image. The first import needs an internet connection to download the text reader; try again.';
     return;
@@ -730,7 +763,9 @@ $('#importImage').onchange = async e => {
   // One ingredient holding the per-serving numbers × servings, so the recipe's per-serving values match the screenshot.
   openAdd(null, {
     values: { name: 'Nutrition per serving (from screenshot)', unit: 'serving', qty: +rForm.servings.value || 1, kcal: found.kcal, p: found.p, c: found.c, f: found.f },
-    note: `Found ${count} of 4 values per serving. Check each one against your screenshot and fix any that are wrong, then tap Add.`,
+    note: (found.kcalEstimated
+      ? `Found ${count - 1} of 4 values per serving. The calories weren’t readable, so they’re estimated from the protein, carbs and fat. `
+      : `Found ${count} of 4 values per serving. `) + 'Check each one against your screenshot and fix any that are wrong, then tap Add.',
   });
 };
 rForm.servings.oninput = renderRecipe;
