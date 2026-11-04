@@ -7,8 +7,8 @@ A free calorie, macro and water tracker that runs in your phone's browser. Your 
 - **Food diary**: Breakfast, Lunch, Dinner and Snacks, with a week strip to jump between days and "Copy yesterday" for repeat meals.
 - **Nutrition Facts summary**: calories left and % of goal for fat, carbs and protein.
 - **Food search**: USDA FoodData Central for text searches, Open Food Facts for barcodes, plus camera barcode scanning.
-- **My Foods and recipes**: everything you log is saved for quick re-use. Recipes calculate per-serving nutrition and can be edited later.
-- **Import recipes from screenshots**: in **New recipe → Import from screenshot**, pick a screenshot from another app (e.g. MyFitnessPal). The text is read on your phone (nothing is uploaded), the name, servings and per-serving calories, protein, carbs and fat are filled in, and you check them before saving.
+- **My Foods and recipes**: everything you log is saved for quick re-use. **Recipes** (top of the diary) lists every recipe with its per-serving nutrition; tap one to view or edit it, or create a new one. Recipes show whole-recipe and per-serving totals as you build them.
+- **Import recipes from screenshots**: in **Recipes → New recipe → Import from screenshot**, pick a screenshot from another app (e.g. MyFitnessPal). The text is read on your phone (nothing is uploaded), the name, servings and per-serving calories, protein, carbs and fat are filled in, and you check them before saving.
 - **Goals**: calculated from your profile (Mifflin-St Jeor), with a lose/maintain/gain rate, goal weight and daily water goal.
 - **Water tracker**: tap cups to log water.
 - **Progress**: weight chart, daily logging streak, and 41 achievements (two of them secret).

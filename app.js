@@ -666,7 +666,7 @@ function renderRecipe() {
 function openRecipe(food) {
   rForm.reset();
   editing = food?.name ?? null;
-  ingredients = food ? food.ingredients.map(x => ({ ...x })) : []; // a copy, so Cancel discards changes
+  ingredients = food ? (food.ingredients || []).map(x => ({ ...x })) : []; // a copy, so Cancel discards changes
   if (food) { rForm.name.value = food.name; rForm.servings.value = food.servings; }
   $('#recipeTitle').textContent = food ? 'Edit recipe' : 'New recipe';
   $('#importMsg').textContent = '';
@@ -674,7 +674,6 @@ function openRecipe(food) {
   $('#recipeDlg').showModal();
 }
 
-$('#recipeBtn').onclick = () => openRecipe(null);
 $('#addIng').onclick = () => openAdd(null);
 
 // ---------- Recipe import from a screenshot (e.g. MyFitnessPal), read on the phone ----------
@@ -708,8 +707,8 @@ function textReader() { // loaded on first use only (about 7 MB, then kept for o
 // grayscale, dark backgrounds flipped to dark-on-light, and enlarged to about 2400px wide (capped at 12
 // megapixels to stay within phone memory limits). With dropColor, strongly colored pixels such as rings and
 // charts are blanked; that finds numbers inside colored graphics, like MyFitnessPal's calorie ring.
-async function prepareImage(file, dropColor = false) {
-  const img = await createImageBitmap(file);
+// `img` is an already-decoded ImageBitmap; the result is a fresh PNG made only from its pixels.
+async function prepareImage(img, dropColor = false) {
   const scale = Math.min(3, Math.max(1, 2400 / img.width), Math.sqrt(12e6 / (img.width * img.height)));
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(img.width * scale);
@@ -731,26 +730,42 @@ async function prepareImage(file, dropColor = false) {
   return new Promise((ok, fail) => canvas.toBlob(b => b ? ok(b) : fail(new Error('image')), 'image/png'));
 }
 
+// Safety checks on the picked file. The `accept` attribute is only a hint, so the file is checked here:
+// common photo/screenshot formats only (no SVG), a size limit, and a pixel limit so an "image bomb" (a small
+// file claiming huge dimensions) can't exhaust the phone's memory. The browser's image decoder then rejects
+// anything that isn't really an image, and only the decoded pixels, redrawn into a new PNG, reach the text
+// reader: the original file's bytes, including any hidden data or metadata, never do.
+const IMPORT_TYPES = /^image\/(?:png|jpeg|webp|heic|heif|gif|bmp)$/, MAX_IMPORT_BYTES = 25e6, MAX_IMPORT_PIXELS = 40e6;
+
 $('#importBtn').onclick = () => $('#importImage').click();
 $('#importImage').onchange = async e => {
   const file = e.target.files[0], msg = $('#importMsg');
   e.target.value = '';
   if (!file) return;
+  if (!IMPORT_TYPES.test(file.type)) { msg.textContent = 'That file isn’t a supported image. Choose a screenshot or photo (PNG, JPEG, WebP or HEIC).'; return; }
+  if (file.size > MAX_IMPORT_BYTES) { msg.textContent = 'That image is too large (over 25 MB). Use a screenshot instead.'; return; }
+  let img;
+  try { img = await createImageBitmap(file); }
+  catch { msg.textContent = 'That file couldn’t be opened as an image. Choose a screenshot or photo.'; return; }
+  if (img.width * img.height > MAX_IMPORT_PIXELS) { img.close(); msg.textContent = 'That image is too large to read. Use a screenshot instead.'; return; }
+
   msg.textContent = 'Getting the text reader ready…';
   let step = 'Reading the screenshot';
   ocrProgress = m => { if (m.status === 'recognizing text') msg.textContent = `${step}… ${r(m.progress * 100)}%`; };
   let found;
   try {
     const reader = await textReader(), read = async blob => (await reader.recognize(blob)).data.text;
-    found = parseNutrition(await read(await prepareImage(file)));
+    found = parseNutrition(await read(await prepareImage(img)));
     if (found.kcalEstimated) { // calories weren't readable: a second read that ignores colored graphics, checked against the macros
       step = 'Looking for the calories';
-      const kcal = caloriesNear(await read(await prepareImage(file, true)), found.kcal);
+      const kcal = caloriesNear(await read(await prepareImage(img, true)), found.kcal);
       if (kcal) { found.kcal = kcal; delete found.kcalEstimated; }
     }
   } catch {
     msg.textContent = 'Couldn’t read that image. The first import needs an internet connection to download the text reader; try again.';
     return;
+  } finally {
+    img.close(); // free the decoded image's memory
   }
   const count = NUT.filter(k => found[k] !== undefined).length;
   if (!count) {
@@ -787,7 +802,25 @@ $('#recipeDlg').onclose = () => {
   NUT.forEach(k => food[k] = t[k] / n);
   if (editing != null) S.foods = S.foods.filter(f => !(f.name === editing && f.unit === RECIPE_UNIT)); // handles renames
   rememberFood(food);
-  if (save()) alert(`Saved "${food.name}". Find it under My Foods when adding food.`);
+  if ($('#recipesDlg').open) renderRecipes(); // the Recipes list underneath shows the change right away
+  if (save()) alert(`Saved "${food.name}". Find it in Recipes, or under My Foods when adding food.`);
+};
+
+// ---------- Recipes menu: every saved recipe, plus New recipe ----------
+let recipeList = []; // recipes in the order shown
+function renderRecipes() {
+  recipeList = S.foods.filter(f => f.unit === RECIPE_UNIT).sort((a, b) => a.name.localeCompare(b.name));
+  $('#recipeList').innerHTML = recipeList.map((f, i) => `<button type="button" class="recipe-row" data-recipe="${i}">
+      <span>${esc(f.name)}<small>Makes ${+(+f.servings || 1).toFixed(2)} ${+f.servings === 1 ? 'serving' : 'servings'}<span class="mac">P ${r(f.p)} C ${r(f.c)} F ${r(f.f)} per serving</span></small></span>
+      <b>${num(f.kcal)}<small>kcal</small></b>
+    </button>`).join('')
+    || '<p><small>No recipes yet. Tap New recipe to create one, or to import one from a screenshot.</small></p>';
+}
+$('#recipesBtn').onclick = () => { renderRecipes(); $('#recipesDlg').showModal(); };
+$('#newRecipeBtn').onclick = () => openRecipe(null);
+$('#recipeList').onclick = e => {
+  const row = e.target.closest('[data-recipe]');
+  if (row) openRecipe(recipeList[row.dataset.recipe]);
 };
 
 // ---------- Weight progress: line over time; tap or hover a point for its value ----------

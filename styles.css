@@ -246,6 +246,26 @@ dialog label { display: flex; flex-direction: column; gap: 4px; font-size: .85re
 .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .actions.start { justify-content: flex-start; flex-wrap: wrap; }
 
+/* Recipes menu */
+#newRecipeBtn { width: 100%; margin: 4px 0 8px; }
+#recipeList { max-height: 60dvh; overflow: auto; }
+.recipe-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  text-align: left;
+  font-weight: 400;
+}
+.recipe-row > span { flex: 1; min-width: 0; display: flex; flex-direction: column; font-weight: 600; }
+.recipe-row > span small { font-weight: 400; }
+.recipe-row > b { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; }
+.recipe-row:hover { background: var(--wash); }
+
 /* Recipe totals: whole recipe and per serving */
 .totals { width: 100%; margin: 10px 0 4px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .totals th, .totals td { padding: 6px 0 6px 6px; text-align: right; }

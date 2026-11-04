@@ -37,7 +37,7 @@
     <button id="next" aria-label="Next day">›</button>
   </nav>
   <nav class="menu">
-    <button class="link" id="recipeBtn">New recipe</button>
+    <button class="link" id="recipesBtn">Recipes</button>
     <button class="icon" id="achBtn" aria-label="Achievements">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v5a5 5 0 0 1-10 0zM7 6H4.5a2.5 2.5 0 0 0 2.6 4M17 6h2.5a2.5 2.5 0 0 1-2.6 4M12 14v4M8 21h8M9.5 18h5v3h-5z"/></svg>
     </button>
@@ -161,13 +161,20 @@
   <form method="dialog" class="actions"><button>Cancel</button></form>
 </dialog>
 
+<dialog id="recipesDlg" aria-labelledby="recipesTitle">
+  <h2 id="recipesTitle">Recipes</h2>
+  <button type="button" id="newRecipeBtn">+ New recipe</button>
+  <div id="recipeList"></div>
+  <form method="dialog" class="actions"><button>Close</button></form>
+</dialog>
+
 <dialog id="recipeDlg" aria-labelledby="recipeTitle">
   <form method="dialog">
     <h2 id="recipeTitle">New recipe</h2>
     <!-- Reads a screenshot from another app (e.g. MyFitnessPal) on the phone; the image is never uploaded. -->
     <div class="import">
       <button type="button" id="importBtn">Import from screenshot</button>
-      <input type="file" id="importImage" accept="image/*" hidden>
+      <input type="file" id="importImage" accept="image/png,image/jpeg,image/webp,image/heic,image/heif,image/gif,image/bmp" hidden>
       <p id="importMsg" aria-live="polite"></p>
     </div>
     <div class="grid">
