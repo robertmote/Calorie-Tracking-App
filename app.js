@@ -177,18 +177,25 @@ function renderLabel(d) {
   </div>`;
 }
 
-const entryRow = (e, attr) => `<div class="row">
+// A food row. Swiping left reveals Remove using native scrolling with snap points (see .swipe in styles.css).
+const entryRow = (e, attr) => `<div class="swipe"><div class="row">
   <div>${esc(e.name)}<small>${+(+e.qty).toFixed(2)} × ${esc(e.unit)}<span class="mac">P ${r(e.p * e.qty)} C ${r(e.c * e.qty)} F ${r(e.f * e.qty)}</span></small></div>
   <span>${r(e.kcal * e.qty)}</span>
-  <button class="link del" ${attr} aria-label="Delete ${esc(e.name)}">✕</button>
-</div>`;
+</div><button type="button" class="swipe-del" ${attr} aria-label="Remove ${esc(e.name)}">Remove</button></div>`;
+
+const CHEVRON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+const expandMeal = m => { if (S.collapsed) delete S.collapsed[m]; };
 
 function renderMeals(d) {
-  $('#meals').innerHTML = MEALS.map(m => {
+  // A one-time pointer to the swipe gesture, until the first food is removed.
+  const hint = d.entries.length && !S.swiped ? '<p class="swipe-hint"><small>Swipe a food left to remove it.</small></p>' : '';
+  $('#meals').innerHTML = hint + MEALS.map(m => {
     const items = d.entries.map((e, i) => [e, i]).filter(([e]) => e.meal === m);
+    const open = !S.collapsed?.[m], kcal = r(totals(items.map(([e]) => e)).kcal);
+    const title = !items.length ? m : `<button type="button" class="meal-toggle" data-toggle="${m}" aria-expanded="${open}">${m}${open ? '' : `<small>${items.length} ${items.length === 1 ? 'food' : 'foods'}</small>`}${CHEVRON}</button>`;
     return `<section class="meal">
-      <h2>${m}<span>${r(totals(items.map(([e]) => e)).kcal)}</span></h2>
-      ${items.map(([e, i]) => entryRow(e, `data-del="${i}"`)).join('')}
+      <h2>${title}<span>${kcal}</span></h2>
+      ${open ? items.map(([e, i]) => entryRow(e, `data-del="${i}"`)).join('') : ''}
       <div class="meal-actions"><button class="link" data-add="${m}">+ Add food</button><button class="link" data-copy="${m}">Copy yesterday</button></div>
     </section>`;
   }).join('') + waterSection(d);
@@ -206,13 +213,21 @@ $('#date').onchange = e => { if (e.target.value) { date = e.target.value; render
 $('#meals').onclick = e => {
   const water = e.target.closest('[data-cup],[data-water]');
   if (water) return onWater(water);
+  const toggle = e.target.closest('[data-toggle]');
+  if (toggle) {
+    const m = toggle.dataset.toggle;
+    (S.collapsed ??= {})[m] = !S.collapsed[m];
+    save(); render();
+    return $(`[data-toggle="${m}"]`).focus(); // keep keyboard and screen reader users on the same button
+  }
   const { del, add, copy } = e.target.dataset;
-  if (del != null) { day().entries.splice(+del, 1); save(); render(); }
+  if (del != null) { day().entries.splice(+del, 1); S.swiped = true; save(); render(); }
   if (add) openAdd(add);
   if (copy) {
     const prev = S.days[addDays(date, -1)]?.entries.filter(x => x.meal === copy) || [];
     if (!prev.length) return alert(`Nothing logged for ${copy} the day before.`);
     day().entries.push(...prev.map(x => ({ ...x, at: Date.now() })));
+    expandMeal(copy);
     save(); render();
   }
 };
@@ -246,6 +261,14 @@ document.addEventListener('click', e => {
   // Cancel buttons are type="button" so the keyboard's Go/Enter key presses the form's Save/Add instead.
   const cancel = e.target.closest('[data-cancel]');
   if (cancel) cancel.closest('dialog').close('cancel');
+  // Tapping a food row also reveals (or hides) its Remove button, for anyone who doesn't swipe.
+  const row = e.target.closest('.swipe > .row');
+  if (row) { const swipe = row.parentElement; swipe.scrollTo({ left: swipe.scrollLeft > 0 ? 0 : swipe.scrollWidth }); }
+});
+// Only one Remove button open at a time: touching anywhere else closes it.
+document.addEventListener('pointerdown', e => {
+  const current = e.target.closest('.swipe');
+  document.querySelectorAll('.swipe').forEach(s => { if (s !== current && s.scrollLeft > 0) s.scrollTo({ left: 0 }); });
 });
 // Since Cancel never submits, any form submission means OK, even one with no button (some keyboards' Go key).
 for (const f of document.querySelectorAll('dialog form')) f.addEventListener('submit', () => f.closest('dialog').returnValue = 'ok');
@@ -526,7 +549,10 @@ $('#addDlg').onclose = () => {
   NUT.forEach(k => food[k] = +fd[k] || 0);
   const entry = { qty: +fd.qty || 1, ...food };
   if (target === 'recipe') { ingredients.push(entry); renderRecipe(); }
-  else day().entries.push({ meal: fd.meal, ...entry, at: Date.now() }); // `at` = when it was logged (Early Bird / Night Owl)
+  else {
+    day().entries.push({ meal: fd.meal, ...entry, at: Date.now() }); // `at` = when it was logged (Early Bird / Night Owl)
+    expandMeal(fd.meal); // show the food that was just added
+  }
   if (!fromScreenshot) rememberFood(food); // a screenshot's per-serving numbers aren't a food to reuse on their own
   save(); render();
 };

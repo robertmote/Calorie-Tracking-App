@@ -83,8 +83,6 @@ button {
 
 button[value=ok] { background: var(--fg); color: var(--bg); }  /* primary action in a form */
 button.link { padding: 10px 0; border: 0; color: var(--accent); }
-/* 44px is a comfortable tap size; the negative margin keeps rows from growing taller */
-button.del { min-width: 44px; min-height: 44px; margin: -8px -8px -8px 0; padding: 0; color: var(--muted); font-weight: 400; }
 
 /* ==========================================================================
    Header: day switcher and menu
@@ -211,6 +209,45 @@ button.icon svg { width: 23px; height: 23px; fill: none; stroke: currentColor; s
 .row .change { width: 48px; text-align: right; }
 .mac { margin-left: .7em; } /* P / C / F macros after a serving */
 
+/* Expandable meal headings */
+.meal-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  font: inherit;
+  font-stretch: inherit;
+}
+.meal-toggle small { font-family: var(--font); font-weight: 400; font-stretch: 100%; }
+.meal-toggle svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
+.meal-toggle[aria-expanded=false] svg { transform: rotate(-90deg); }
+
+/* Swipe a food left to reveal Remove: each row is a sideways scroller that snaps open or closed, so the
+   gesture is the phone's own scrolling. No touch-handling code, and the button stays keyboard reachable. */
+.swipe {
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain; /* a swipe here mustn't trigger the browser's back gesture */
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--line);
+}
+.swipe::-webkit-scrollbar { display: none; }
+.swipe > .row { flex: 0 0 100%; min-width: 0; border-bottom: 0; scroll-snap-align: start; cursor: pointer; }
+.swipe-del {
+  flex: 0 0 96px;
+  border: 0;
+  border-radius: 0;
+  background: #b3261e; /* fixed color so the white text stays readable in both themes */
+  color: #fff;
+  font-weight: 700;
+  scroll-snap-align: end;
+}
+.swipe-hint { margin: 16px 0 -14px; }
+
 .cups { display: grid; grid-template-columns: repeat(8, max-content); gap: 2px; padding: 10px 0 2px; }
 .cups button { padding: 7px 6px; border: 0; border-radius: 6px; color: var(--fg); }
 .cups svg { width: 26px; height: 30px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
@@ -282,10 +319,12 @@ dialog label { display: flex; flex-direction: column; gap: 4px; font-size: .85re
 #importMsg:empty { display: none; }
 
 /* Add food */
+#addDlg { height: 92dvh; }
+#foodForm { display: flex; flex-direction: column; height: 100%; }
 #addDlg h2 { justify-content: flex-start; align-items: center; gap: 10px; }
 .bar { display: flex; gap: 8px; }
 .bar input { flex: 1; min-width: 0; }
-#results { max-height: 240px; margin: 8px 0; padding: 0; overflow: auto; list-style: none; border-top: 1px solid var(--line); }
+#results { flex: 1; min-height: 120px; margin: 8px 0; padding: 0; overflow: auto; list-style: none; border-top: 1px solid var(--line); }
 #results li { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
 #results li > small { padding: 8px 4px; }
 #results small { display: block; }
@@ -431,5 +470,6 @@ dialog.page[open] { animation: none; }
 
 @media (prefers-reduced-motion: reduce) {
   dialog[open] { animation: none; }
-  #toast { transition: none; }
+  #toast, .meal-toggle svg { transition: none; }
+  .swipe { scroll-behavior: auto; }
 }
