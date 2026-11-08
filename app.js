@@ -496,12 +496,17 @@ function showHits(list, empty = NO_SAVED_MATCH) {
 const localHits = q => S.foods.filter(f => f.name.toLowerCase().includes(q.toLowerCase())).slice(0, 30);
 
 let importing = false; // the sheet is showing numbers read from a screenshot
+let addedNames = [];    // foods added with "Add another" since the sheet opened
 
 // meal = null → adding a recipe ingredient. check = { values, note } → numbers read from a screenshot,
 // shown in the normal editable fields so every one can be checked before it's added.
 function openAdd(meal, check) {
   target = meal ? 'diary' : 'recipe';
   importing = !!check;
+  addedNames = [];
+  $('#added').textContent = '';
+  $('#addDlg [data-cancel]').textContent = 'Cancel';
+  $('#addMore').hidden = !!check;
   form.reset();
   form.meal.value = meal || MEALS[0];
   form.meal.hidden = !meal;
@@ -543,7 +548,26 @@ function rememberFood(food) {
 $('#addDlg').onclose = () => {
   const fromScreenshot = importing;
   importing = false;
-  if (closedWith($('#addDlg')) !== 'ok') return;
+  if (closedWith($('#addDlg')) === 'ok') addFromForm(fromScreenshot);
+};
+
+// "Add another": log this food, then clear the form for the next one without closing the sheet.
+$('#addMore').onclick = () => {
+  if (!form.reportValidity()) return;
+  const meal = form.meal.value;
+  addedNames.push(form.name.value.trim());
+  addFromForm(false);
+  form.reset();
+  form.meal.value = meal;
+  $('#q').value = '';
+  searchId++;
+  showHits(localHits(''));
+  $('#added').textContent = `Added ${addedNames.length}: ${addedNames.join(', ')}`;
+  $('#addDlg [data-cancel]').textContent = 'Done';
+  $('#q').focus();
+};
+
+function addFromForm(fromScreenshot) {
   const fd = Object.fromEntries(new FormData(form));
   const food = { name: fd.name.trim(), unit: fd.unit.trim() };
   NUT.forEach(k => food[k] = +fd[k] || 0);

@@ -325,6 +325,8 @@ dialog label { display: flex; flex-direction: column; gap: 4px; font-size: .85re
 .bar { display: flex; gap: 8px; }
 .bar input { flex: 1; min-width: 0; }
 #results { flex: 1; min-height: 120px; margin: 8px 0; padding: 0; overflow: auto; list-style: none; border-top: 1px solid var(--line); }
+#added { color: var(--accent); font-weight: 600; }
+#added:empty { display: none; }
 #results li { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
 #results li > small { padding: 8px 4px; }
 #results small { display: block; }

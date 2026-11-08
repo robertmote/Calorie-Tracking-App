@@ -4,7 +4,7 @@ A free calorie, macro and water tracker that runs in your phone's browser. Your 
 
 ## Features
 
-- **Food diary**: Breakfast, Lunch, Dinner and Snacks, with a week strip to jump between days and "Copy yesterday" for repeat meals. Tap a meal name to expand or collapse it, and swipe a food left to remove it.
+- **Food diary**: Breakfast, Lunch, Dinner and Snacks, with a week strip to jump between days and "Copy yesterday" for repeat meals. Tap a meal name to expand or collapse it, and swipe a food left to remove it. Use **Add another** to log several foods without closing the sheet.
 - **Nutrition Facts summary**: calories left and % of goal for fat, carbs and protein.
 - **Food search**: USDA FoodData Central for text searches, Open Food Facts for barcodes, plus camera barcode scanning.
 - **My Foods and recipes**: everything you log is saved for quick re-use. **Recipes** (top of the diary) lists every recipe with its per-serving nutrition; tap one to view or edit it, or create a new one. Recipes show whole-recipe and per-serving totals as you build them.

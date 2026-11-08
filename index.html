@@ -151,7 +151,8 @@
       <label>Carbs (g)<input name="c" type="number" step="any" min="0" value="0"></label>
       <label>Fat (g)<input name="f" type="number" step="any" min="0" value="0"></label>
     </div>
-    <div class="actions"><button type="button" data-cancel>Cancel</button><button value="ok">Add</button></div>
+    <small id="added" role="status" aria-live="polite"></small>
+    <div class="actions"><button type="button" data-cancel>Cancel</button><button type="button" id="addMore">Add another</button><button value="ok">Add</button></div>
   </form>
 </dialog>
 
