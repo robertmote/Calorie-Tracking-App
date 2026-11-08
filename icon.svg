@@ -1,15 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- A miniature Nutrition Facts label, matching the app's daily summary. -->
-  <rect width="512" height="512" fill="#fff"/>
-  <rect x="112" y="88" width="288" height="336" fill="none" stroke="#000" stroke-width="14"/>
-  <rect x="140" y="120" width="190" height="40" fill="#000"/>
-  <rect x="140" y="182" width="232" height="18" fill="#000"/>
-  <rect x="140" y="226" width="110" height="26" fill="#000"/>
-  <rect x="300" y="216" width="72" height="36" fill="#000"/>
-  <rect x="140" y="272" width="232" height="9" fill="#000"/>
-  <rect x="140" y="304" width="96" height="14" fill="#000"/>
-  <rect x="326" y="304" width="46" height="14" fill="#000"/>
-  <rect x="140" y="334" width="232" height="4" fill="#000"/>
-  <rect x="140" y="356" width="120" height="14" fill="#000"/>
-  <rect x="326" y="356" width="46" height="14" fill="#000"/>
+  <!-- Macro ring (protein, carbs, fat) around "RM", on black. Kept inside the central 80% so it survives icon masks.
+       The PNGs are drawn from the same shapes; keep them in step with this file. -->
+  <rect width="512" height="512" fill="#000"/>
+  <g fill="none" stroke-width="56" transform="rotate(-90 256 256)">
+    <circle cx="256" cy="256" r="150" pathLength="100" stroke="#6ccb78" stroke-dasharray="40 60" stroke-dashoffset="-2"/>
+    <circle cx="256" cy="256" r="150" pathLength="100" stroke="#fff" stroke-dasharray="30 70" stroke-dashoffset="-46"/>
+    <circle cx="256" cy="256" r="150" pathLength="100" stroke="#7a7a7a" stroke-dasharray="20 80" stroke-dashoffset="-80"/>
+  </g>
+  <g fill="#fff" fill-rule="evenodd">
+    <path d="M157 306V206H205A32 32 0 0 1 222 265L240 306H212L196 270H183V306ZM183 230H205A8 8 0 0 1 205 246H183Z"/>
+    <path d="M247 306V206h29l25 38 25-38h29v100h-26v-54l-28 41-28-41v54z"/>
+  </g>
 </svg>
