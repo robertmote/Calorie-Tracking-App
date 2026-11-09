@@ -343,6 +343,8 @@ dialog label { display: flex; flex-direction: column; gap: 4px; font-size: .85re
 #results .hit:hover { background: var(--wash); }
 #results .hit[aria-pressed=true] { border-left-color: var(--fg); background: var(--wash); font-weight: 600; }
 #results .link { margin-right: 4px; white-space: nowrap; }
+#results .pq { width: 64px; flex: none; }
+#addDlg .actions button { padding-inline: 12px; white-space: nowrap; } /* three buttons fit one row on small phones */
 
 #video { width: 100%; border-radius: 8px; background: #000; }
 

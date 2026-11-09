@@ -482,18 +482,32 @@ const form = $('#foodForm');
 form.meal.innerHTML = MEALS.map(m => `<option>${m}</option>`).join('');
 let hits = [];          // foods currently listed in the results
 let target = 'diary';   // 'diary' or 'recipe': where the Add button puts the food
+let picked = [];        // [{ food, qty }] results tapped to add together; kept across searches
+const pickOf = f => picked.find(p => sameFood(p.food, f));
+const syncPicked = () => { $('#addOk').textContent = picked.length ? `Add (${picked.length})` : 'Add'; };
 
 const NO_SAVED_MATCH = 'Nothing saved matches. Tap Search to look it up online, or enter it below.';
 function showHits(list, empty = NO_SAVED_MATCH) {
   hits = list;
   // Each result is a real button, so it works with a keyboard and screen readers.
-  $('#results').innerHTML = list.map((f, i) => `<li>
-    <button type="button" class="hit" data-i="${i}" aria-pressed="false">${esc(f.name)}
+  // Tapping a result selects it (aria-pressed); a selected one gets its own servings box.
+  $('#results').innerHTML = list.map((f, i) => { const p = pickOf(f); return `<li>
+    <button type="button" class="hit" data-i="${i}" aria-pressed="${!!p}">${esc(f.name)}
       <small>${r(f.kcal)} kcal per ${esc(f.unit)}<span class="mac">P ${r(f.p)} C ${r(f.c)} F ${r(f.f)}</span></small></button>
-    ${f.ingredients && target === 'diary' ? `<button type="button" class="link" data-edit="${i}">Edit recipe</button>` : ''}</li>`).join('')
+    ${p ? `<input class="pq" type="number" step="any" min="0" value="${p.qty}" data-q="${i}" aria-label="Servings of ${esc(f.name)}">` : ''}
+    ${f.ingredients && target === 'diary' ? `<button type="button" class="link" data-edit="${i}">Edit recipe</button>` : ''}</li>`; }).join('')
     || `<li><small>${empty}</small></li>`;
 }
-const localHits = q => S.foods.filter(f => f.name.toLowerCase().includes(q.toLowerCase())).slice(0, 30);
+// Saved foods matching q. Foods logged at this meal in the last 60 days come first, most often first;
+// the rest stay most recent first.
+function localHits(q) {
+  const n = new Map(), id = f => f.name + '\n' + f.unit, since = addDays(date, -60);
+  if (target === 'diary') for (const [k, d] of Object.entries(S.days)) if (k >= since)
+    for (const e of d.entries) if (e.meal === form.meal.value) n.set(id(e), (n.get(id(e)) || 0) + 1);
+  const count = f => n.get(id(f)) || 0;
+  return S.foods.filter(f => f.name.toLowerCase().includes(q.toLowerCase())).sort((a, b) => count(b) - count(a)).slice(0, 30);
+}
+form.meal.onchange = () => { searchId++; showHits(localHits($('#q').value)); }; // switching meal re-ranks the list
 
 let importing = false; // the sheet is showing numbers read from a screenshot
 let addedNames = [];    // foods added with "Add another" since the sheet opened
@@ -504,6 +518,8 @@ function openAdd(meal, check) {
   target = meal ? 'diary' : 'recipe';
   importing = !!check;
   addedNames = [];
+  picked = [];
+  syncPicked();
   $('#added').textContent = '';
   $('#addDlg [data-cancel]').textContent = 'Cancel';
   $('#addMore').hidden = !!check;
@@ -532,11 +548,19 @@ $('#results').onclick = e => {
   if (edit != null) { $('#addDlg').close('cancel'); return openRecipe(hits[edit]); }
   const hit = e.target.closest('.hit'), f = hits[hit?.dataset.i];
   if (!f) return;
-  for (const k of ['name', 'unit', ...NUT]) form[k].value = typeof f[k] === 'number' ? +f[k].toFixed(1) : f[k];
-  // Show which result was picked, then go straight to the number of servings.
-  document.querySelectorAll('#results .hit').forEach(b => b.setAttribute('aria-pressed', b === hit));
-  form.qty.focus();
-  form.qty.select();
+  const p = pickOf(f);
+  picked = p ? picked.filter(x => x !== p) : [...picked, { food: f, qty: 1 }];
+  syncPicked();
+  showHits(hits);
+  const i = hit.dataset.i, box = document.querySelector(`#results [data-q="${i}"]`);
+  (box || document.querySelector(`#results [data-i="${i}"]`)).focus();
+  box?.select();
+};
+$('#results').oninput = e => { const p = pickOf(hits[e.target.dataset.q] || {}); if (p) p.qty = +e.target.value || 1; };
+
+// Add with foods selected and the form empty: log the selection without the form's required fields.
+$('#addOk').onclick = e => {
+  if (picked.length && !form.name.value.trim()) { e.preventDefault(); $('#addDlg').close('ok'); }
 };
 
 const sameFood = (a, b) => a.name === b.name && a.unit === b.unit;
@@ -548,15 +572,21 @@ function rememberFood(food) {
 $('#addDlg').onclose = () => {
   const fromScreenshot = importing;
   importing = false;
-  if (closedWith($('#addDlg')) === 'ok') addFromForm(fromScreenshot);
+  if (closedWith($('#addDlg')) !== 'ok') return;
+  if (form.name.value.trim()) addFromForm(fromScreenshot);
+  addPicked();
 };
 
 // "Add another": log this food, then clear the form for the next one without closing the sheet.
 $('#addMore').onclick = () => {
-  if (!form.reportValidity()) return;
+  if (form.name.value.trim() || !picked.length) {
+    if (!form.reportValidity()) return;
+    addedNames.push(form.name.value.trim());
+    addFromForm(false);
+  }
+  addedNames.push(...picked.map(p => p.food.name));
+  addPicked();
   const meal = form.meal.value;
-  addedNames.push(form.name.value.trim());
-  addFromForm(false);
   form.reset();
   form.meal.value = meal;
   $('#q').value = '';
@@ -567,19 +597,34 @@ $('#addMore').onclick = () => {
   $('#q').focus();
 };
 
+// Puts one food in the chosen diary meal (or the recipe being edited).
+function logFood(food, qty) {
+  if (target === 'recipe') { ingredients.push({ qty, ...food }); renderRecipe(); return; }
+  day().entries.push({ meal: form.meal.value, qty, ...food, at: Date.now() }); // `at` = when it was logged (Early Bird / Night Owl)
+  expandMeal(form.meal.value); // show the food that was just added
+}
+
 function addFromForm(fromScreenshot) {
   const fd = Object.fromEntries(new FormData(form));
   const food = { name: fd.name.trim(), unit: fd.unit.trim() };
   NUT.forEach(k => food[k] = +fd[k] || 0);
-  const entry = { qty: +fd.qty || 1, ...food };
-  if (target === 'recipe') { ingredients.push(entry); renderRecipe(); }
-  else {
-    day().entries.push({ meal: fd.meal, ...entry, at: Date.now() }); // `at` = when it was logged (Early Bird / Night Owl)
-    expandMeal(fd.meal); // show the food that was just added
-  }
+  logFood(food, +fd.qty || 1);
   if (!fromScreenshot) rememberFood(food); // a screenshot's per-serving numbers aren't a food to reuse on their own
   save(); render();
-};
+}
+
+function addPicked() {
+  if (!picked.length) return;
+  for (const { food: f, qty } of picked) {
+    const food = { name: f.name, unit: f.unit };
+    NUT.forEach(k => food[k] = +(+f[k] || 0).toFixed(1));
+    logFood(food, qty);
+    rememberFood(food);
+  }
+  picked = [];
+  syncPicked();
+  save(); render();
+}
 
 // ---------- Food search ----------
 // Barcodes (8-14 digits) → Open Food Facts (free, no key), falling back to USDA's branded foods.
